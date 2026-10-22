@@ -1,0 +1,20 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://YOUR-PAGES-PROJECT.pages.dev"
+    ],
+    "AllowedMethods": [
+      "PUT",
+      "GET",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "content-type",
+      "x-amz-*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]
