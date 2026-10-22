@@ -4,10 +4,11 @@ React/Vite app with two areas: a public download portal and an admin Studio. The
 
 ## Architecture
 
-- Cloudflare Pages serves the static frontend and Pages Functions proxy `/api/*` requests to the API backend.
-- The standalone Cloudflare Worker is an optional API gateway to the same backend.
+- Cloudflare Workers can serve the Vite SPA from `dist/` and route `/api/*` through `worker/index.ts`. The root `wrangler.toml` is configured for the `npx wrangler deploy` command shown in Cloudflare Workers Builds.
+- Cloudflare Pages is also supported; its separate `wrangler.pages.toml` configuration works with Pages Functions and `wrangler pages deploy`.
+- The optional standalone API gateway Worker uses `wrangler.worker.toml`.
 - Render runs the Express/Node API. PostgreSQL stores metadata, sessions and audit logs; R2 stores the actual binaries.
-- The Node/Express server is **not executed directly inside Workers**. The Cloudflare entry points in this repository are edge gateways, so a reachable Render API is required for authenticated APIs, publishing and downloads.
+- The Node/Express server is **not executed directly inside Workers**. The Cloudflare entry points serve static assets and forward API requests to the reachable Render backend, which remains responsible for authentication, publishing and downloads.
 
 ## 1. PostgreSQL and R2 setup
 
@@ -50,22 +51,22 @@ Add these **repository secrets**:
 | `CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account ID |
 | `RENDER_BACKEND_ORIGIN` | The exact HTTPS origin of the deployed Render service, such as `https://your-service.onrender.com` |
 
-`RENDER_BACKEND_ORIGIN` must be an origin only: no `/api` path, query, fragment or credentials. The workflow validates this value and securely prepares a temporary secret file which it deletes after use. It configures `BACKEND_ORIGIN` on Pages Functions and the standalone Worker automatically.
+`RENDER_BACKEND_ORIGIN` must be an origin only: no `/api` path, query, fragment or credentials. The workflow validates this value and securely prepares a temporary secret file which it deletes after use. It configures `BACKEND_ORIGIN` for Pages Functions, the full-stack Worker, and the standalone API gateway automatically.
 
 The Cloudflare API token must be scoped to the target account with permission to edit/deploy **Cloudflare Pages** and **Workers Scripts**. Never place the API token or R2 credentials in source code, chat, frontend variables or committed files.
 
-If the Cloudflare GitHub App is also running a separate **Workers Builds** check for the legacy Worker named `hendy-server-app-downloader`, disable that service's automatic build/deploy before relying on this workflow, or configure that service explicitly to use `wrangler.worker.toml`. This workflow deploys the edge gateway as `hendy-server-app-downloader-api`; do not have two deployment systems trying to publish the same Worker.
+If deploying through Cloudflare's built-in **Workers Builds** integration, keep the build command `npm install && npm run build` and deploy command `npx wrangler deploy`. The root `wrangler.toml` now defines the `worker/index.ts` entry point and `dist/` assets. In that mode, set `BACKEND_ORIGIN` under the Worker project's Variables and Secrets. Avoid running two deployment systems against the same Worker unless you intentionally want both to publish sequentially.
 
 Add a **repository variable** named `CLOUDFLARE_DEPLOY_ENABLED` with exact value `true` only after the Pages project exists and the three secrets above are set. Leave it unset or set to `false` to run CI checks without deploying. The workflow can deploy on pushes to `main` and by manually selecting **Actions → Build and deploy Hendy Server App Downloader → Run workflow** on `main`.
 
-## 4. Deploy Cloudflare Pages + Functions and Worker
+## 4. Deploy Cloudflare Workers or Pages
 
-1. Create a Cloudflare Pages project named `hendy-server-app-downloader` in the same account. Because GitHub Actions runs `wrangler pages deploy`, create a Direct Upload project for CI/CD instead of connecting a second automatic Git build. If you already use Cloudflare Git integration, turn off its automatic builds before enabling GitHub Actions to avoid duplicate deployments.
-2. The Pages build is `npm install && npm run build`; output directory is `dist`. The `functions/api/[[path]].ts` handler is at the repository root and proxies `/api/*` requests to the backend without edge caching.
-3. After the Pages project and GitHub Secrets/variable are ready, push to `main` or run the workflow manually. The workflow writes `BACKEND_ORIGIN` as a Pages Function secret, then deploys the frontend and Pages Functions. It also deploys the standalone Worker `hendy-server-app-downloader-api` and sets its `BACKEND_ORIGIN` secret.
-4. Once deployment completes, test `https://hendy-server-app-downloader.pages.dev/api/v1/public/apps` and the Worker URL shown in Cloudflare. The Render backend must be reachable; if it is asleep on Free, the first request may be delayed.
+1. **Workers deployment (matches the logged command `npx wrangler deploy`):** the root `wrangler.toml` defines `main = "worker/index.ts"` and `assets.directory = "./dist"`, so the Worker and Vite SPA deploy together. Keep the Cloudflare build command `npm install && npm run build` and deploy command `npx wrangler deploy`.
+2. In Cloudflare Worker Settings → Variables and Secrets, set `BACKEND_ORIGIN` to the HTTPS origin of the Render API when deploying through the Cloudflare Git integration. Wrangler routes `/api/*` through the Worker first, while static frontend routes are served from the assets directory and fall back to `index.html`.
+3. **Pages deployment (separate option):** use build command `npm install && npm run build` and output directory `dist`. The Pages Functions handler `functions/api/[[path]].ts` proxies API requests. GitHub Actions explicitly uses `wrangler.pages.toml` for Pages commands so the root Worker configuration is not mistaken for a Pages config.
+4. After the GitHub secrets and `CLOUDFLARE_DEPLOY_ENABLED=true` variable are ready, GitHub Actions can deploy the combined SPA Worker, the Pages project and the optional standalone API gateway `hendy-server-app-downloader-api`. Check the deployed Pages/Worker URL and test `/api/v1/public/apps`; the Render backend must be reachable and the required database and R2 variables must already be set.
 
-Do not commit a Wrangler configuration containing database IDs, R2 secrets, admin passwords or API tokens. `wrangler.toml` contains only public Pages configuration.
+Do not commit Wrangler configs containing database IDs, R2 secrets, admin passwords or API tokens. The two public config files declare the deployment shape only.
 
 ## 5. Releases and artifacts
 
