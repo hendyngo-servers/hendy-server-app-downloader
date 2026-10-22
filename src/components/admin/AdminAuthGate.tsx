@@ -11,8 +11,8 @@ interface AdminAuthGateProps {
 }
 
 export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({ onSuccess, onCancel }) => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('ForgeAdmin2026!Secure');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
