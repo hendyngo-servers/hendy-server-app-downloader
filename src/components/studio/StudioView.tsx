@@ -50,6 +50,7 @@ export const StudioView: React.FC<StudioViewProps> = ({
   adminToken,
   onNotify,
   onRefreshData
+}) => {
   const projectFiles = activeProject.files || [];
   const [activeFileId, setActiveFileId] = useState<string>(
     projectFiles[0]?.id || ''
