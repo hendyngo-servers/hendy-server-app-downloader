@@ -1,0 +1,5 @@
+# Separate configuration for Cloudflare Pages and Pages Functions.
+# Use with "wrangler pages deploy", not with "wrangler deploy".
+name = "hendy-server-app-downloader"
+compatibility_date = "2026-10-23"
+pages_build_output_dir = "./dist"

@@ -1,10 +1,17 @@
 /**
- * Standalone Cloudflare Worker API gateway.
- * Configure BACKEND_ORIGIN as a Worker secret/variable in the Cloudflare dashboard.
- * Authorization and business rules remain in the Render API.
+ * Cloudflare Worker frontend/API entrypoint.
+ *
+ * The root wrangler.toml deploys the Vite SPA from ./dist and routes /api/*
+ * through this Worker. wrangler.worker.toml reuses the same handler without
+ * an ASSETS binding as a standalone API gateway.
  */
+interface AssetsBinding {
+  fetch(request: Request): Promise<Response>;
+}
+
 interface Env {
   BACKEND_ORIGIN?: string;
+  ASSETS?: AssetsBinding;
 }
 
 async function proxy(request: Request, env: Env): Promise<Response> {
@@ -13,21 +20,26 @@ async function proxy(request: Request, env: Env): Promise<Response> {
     return Response.json({
       success: false,
       code: "BACKEND_ORIGIN_NOT_CONFIGURED",
-      error: "Set BACKEND_ORIGIN in the Worker settings before serving requests."
+      error: "Set BACKEND_ORIGIN in the Worker settings before serving API requests."
     }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 
   let backend: URL;
   try {
     backend = new URL(originValue);
-    if (backend.protocol !== "https:" && backend.hostname !== "localhost" && backend.hostname !== "127.0.0.1") {
+    if (
+      backend.protocol !== "https:" &&
+      backend.hostname !== "localhost" &&
+      backend.hostname !== "127.0.0.1"
+    ) {
       throw new Error("HTTPS required");
     }
   } catch {
-    return Response.json({ success: false, error: "Invalid BACKEND_ORIGIN; HTTPS is required." }, {
-      status: 500,
-      headers: { "Cache-Control": "no-store" }
-    });
+    return Response.json({
+      success: false,
+      code: "INVALID_BACKEND_ORIGIN",
+      error: "BACKEND_ORIGIN must be a valid HTTPS origin."
+    }, { status: 500, headers: { "Cache-Control": "no-store" } });
   }
 
   const incoming = new URL(request.url);
@@ -46,15 +58,25 @@ async function proxy(request: Request, env: Env): Promise<Response> {
       headers
     });
   } catch {
-    return Response.json({ success: false, code: "BACKEND_UNAVAILABLE" }, {
-      status: 502,
-      headers: { "Cache-Control": "no-store" }
-    });
+    return Response.json({
+      success: false,
+      code: "BACKEND_UNAVAILABLE",
+      error: "Could not reach the API backend."
+    }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }
 }
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
+    const pathname = new URL(request.url).pathname;
+
+    // When this Worker also hosts static assets, let unmatched non-API routes
+    // resolve through the assets binding (including the configured SPA shell).
+    if (env.ASSETS && !pathname.startsWith("/api/")) {
+      return env.ASSETS.fetch(request);
+    }
+
+    // Without ASSETS this handler remains a standalone API gateway.
     return proxy(request, env);
   }
 };
