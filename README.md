@@ -9,7 +9,7 @@ React/Vite app with two areas: a public download portal and an admin Studio. The
 - A private Cloudflare R2 bucket stores binaries. The API generates short-lived signed download URLs; the bucket itself does not need public access.
 - Cloudflare Pages + Pages Functions (Workers runtime) serve the static UI and proxy /api/* to the Render backend, so the frontend can continue using relative API paths.
 
-The Express backend uses Node APIs and is not simply executed unchanged inside Workers. In this setup Pages Functions are the edge gateway and Render is the single API origin, avoiding split-brain metadata stores.
+The Express backend uses Node APIs and is not simply executed unchanged inside Workers. Pages Functions and the optional standalone Worker are edge gateways; Render remains the single API origin, avoiding split-brain metadata stores.
 
 ## 1. PostgreSQL and R2 setup
 
