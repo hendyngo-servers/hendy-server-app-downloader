@@ -40,7 +40,18 @@ Set ADMIN_PASSWORD before the first production start. There are no default crede
 
 After deployment, check https://YOUR-RENDER-SERVICE.onrender.com/healthz. Expected response: a JSON status of ok. Render Free web services spin down after 15 minutes without inbound traffic, and the next request takes about one minute to start. Render says Free instances should not be used for production applications; use this plan only for a hobby/preview environment. Render can also suspend a Free web service that generates unusually high external traffic, including traffic to a database or object storage.
 
-## 3. Deploy Cloudflare Pages + Functions
+## 3. Configure GitHub Actions deployment
+
+GitHub Actions always runs the dependency install, TypeScript check and production frontend build. Actual Cloudflare deploy jobs are opt-in so a missing secret does not make ordinary CI fail.
+
+In GitHub, open **Settings → Secrets and variables → Actions**:
+- Add repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- The API token must have permission to deploy Cloudflare Pages and Workers for the selected account.
+- Add a repository variable named `CLOUDFLARE_DEPLOY_ENABLED` with the exact value `true` only after both secrets and the Cloudflare Pages project are ready. Leave it unset/false to run CI without deploying.
+
+The Cloudflare Pages variable `BACKEND_ORIGIN` must be set separately in Pages settings. If using the standalone Worker, set its `BACKEND_ORIGIN` in Worker Settings → Variables and Secrets as well. Use the HTTPS origin of the Render API, without a trailing slash or `/api`.
+
+## 4. Deploy Cloudflare Pages + Functions
 
 1. Create Pages project hendy-server-app-downloader, connect this repository and use branch main. Build command: npm install && npm run build. Output directory: dist.
 2. Under Pages Settings, Variables and Secrets, Production, set BACKEND_ORIGIN to the exact HTTPS origin of the Render service, for example https://your-service.onrender.com. Do not append /api or a trailing slash.
@@ -49,7 +60,7 @@ After deployment, check https://YOUR-RENDER-SERVICE.onrender.com/healthz. Expect
 
 Do not commit a wrangler configuration containing database IDs, R2 secrets, or admin passwords. wrangler.toml contains only public Pages configuration.
 
-## 4. Releases and artifacts
+## 5. Releases and artifacts
 
 - Multipart upload: POST /api/v1/admin/upload-artifact with a Bearer token and form fields file, projectSlug, version, platform, format, and arch. The maximum is controlled by MAX_UPLOAD_BYTES.
 - Large packages: call POST /api/v1/admin/artifact-upload-url with JSON metadata, PUT the raw bytes to uploadUrl, then call POST /api/v1/admin/register-artifact with ticketId. The ticket is bound to the creating admin session and expires after 15 minutes.
@@ -57,7 +68,7 @@ Do not commit a wrangler configuration containing database IDs, R2 secrets, or a
 - SHA-256 is calculated from uploaded/stored bytes. The verified flag means the checksum was computed on the server; it does not assert that an executable has a vendor code signature. The backend no longer fabricates signatureInfo values.
 - Project edits persist through PUT /api/v1/admin/projects/:id. Admin endpoints require an unexpired Bearer session. Login attempts are rate-limited, random tokens are issued, and only token hashes are stored in PostgreSQL.
 
-## 5. Smoke checks
+## 6. Smoke checks
 
 Run locally:
 
