@@ -16,7 +16,7 @@ import { DomainConfigPanel } from './components/deployment/DomainConfigPanel.tsx
 import { AdminAuthGate } from './components/admin/AdminAuthGate.tsx';
 
 export default function App() {
-  const [projects, setProjects] = useState<ProjectTemplate[]>(SAMPLE_PROJECTS);
+  const [projects, setProjects] = useState<ProjectTemplate[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>(SAMPLE_PROJECTS[0].id);
   const [deploymentConfig, setDeploymentConfig] = useState<CloudflareWorkersPagesConfig>(getDefaultDeploymentConfig());
 
@@ -104,22 +104,24 @@ export default function App() {
             if (data.authenticated) {
               setAdminUser(data.user);
               setAdminToken(token);
-              loadProjects(token);
+              await loadProjects(token);
             } else {
               localStorage.removeItem('forge_admin_token');
               setAdminToken(null);
               setAdminUser(null);
+              await loadProjects(null);
             }
           } else {
             localStorage.removeItem('forge_admin_token');
             setAdminToken(null);
             setAdminUser(null);
+            await loadProjects(null);
           }
         } catch {
-          // Bỏ qua lỗi mạng
+          await loadProjects(null);
         }
       } else {
-        loadProjects(null);
+        await loadProjects(null);
       }
       setIsCheckingAuth(false);
     };
@@ -315,15 +317,32 @@ export default function App() {
             />
           )
         ) : (
-          <DownloadPortalView
-            project={activeProject}
-            projects={projects}
-            onSelectProject={(p) => setActiveProjectId(p.id)}
-            detectedOS={detectedOS}
-            onNotify={notify}
-            activeTab={activePortalTab}
-            onTabChange={setActivePortalTab}
-          />
+          isCheckingAuth ? (
+            <div className="flex-1 flex items-center justify-center bg-slate-950 text-slate-400 text-sm">
+              Đang tải danh sách phần mềm đã xuất bản...
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center bg-slate-950 p-6">
+              <div className="max-w-xl text-center space-y-3">
+                <div className="text-3xl">📦</div>
+                <h2 className="text-lg font-bold text-white">Chưa có bản phát hành công khai</h2>
+                <p className="text-sm text-slate-400">
+                  Kho hiện chưa có artifact thật thuộc bản phát hành đã xuất bản, hoặc API chưa kết nối được.
+                  Quản trị viên có thể đăng nhập tại giao diện Studio để tải tệp phát hành lên.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <DownloadPortalView
+              project={activeProject}
+              projects={projects}
+              onSelectProject={(p) => setActiveProjectId(p.id)}
+              detectedOS={detectedOS}
+              onNotify={notify}
+              activeTab={activePortalTab}
+              onTabChange={setActivePortalTab}
+            />
+          )
         )}
       </main>
 
