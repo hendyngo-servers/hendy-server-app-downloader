@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ProjectTemplate, TargetPlatform, BuildArtifact, ReleaseVersion, CloudflareWorkersPagesConfig } from './types/index.ts';
 import { SAMPLE_PROJECTS } from './utils/sampleProjects.ts';
 import { getDefaultDeploymentConfig } from './utils/workersPagesConfig.ts';
@@ -39,6 +39,7 @@ export default function App() {
 
   // Hộp thoại thông báo Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const fileSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const notify = (msg: string) => {
     setToastMessage(msg);
@@ -171,10 +172,38 @@ export default function App() {
   };
 
   const handleUpdateFileContent = (fileId: string, content: string) => {
-    persistProject({
-      ...activeProject,
-      files: activeProject.files.map(file => file.id === fileId ? { ...file, content } : file)
-    });
+    const projectId = activeProjectId;
+    setProjects(prev => prev.map(project => project.id !== projectId ? project : {
+      ...project,
+      files: project.files.map(file => file.id === fileId ? { ...file, content } : file)
+    }));
+
+    if (!adminToken) return;
+    const timerKey = projectId + ':' + fileId;
+    const existing = fileSaveTimers.current[timerKey];
+    if (existing) clearTimeout(existing);
+
+    // Debounce edits and use a focused PATCH so rapid keystrokes cannot overwrite stale project state.
+    fileSaveTimers.current[timerKey] = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          '/api/v1/admin/projects/' + encodeURIComponent(projectId) + '/files/' + encodeURIComponent(fileId),
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + adminToken
+            },
+            body: JSON.stringify({ content })
+          }
+        );
+        if (!res.ok) notify('Không thể lưu nội dung tệp (' + res.status + '). Vui lòng thử lại.');
+      } catch {
+        notify('Mất kết nối khi lưu tệp. Kiểm tra máy chủ rồi thử lại.');
+      } finally {
+        delete fileSaveTimers.current[timerKey];
+      }
+    }, 600);
   };
 
   const handleAddFile = (name: string, filePath: string) => {
