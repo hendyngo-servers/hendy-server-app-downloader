@@ -40,7 +40,10 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
   const fetchManifest = async () => {
     setIsLoadingManifest(true);
     try {
-      const res = await fetch('/api/v1/public/manifest.json');
+      const res = await fetch('/api/v1/admin/manifest.json', {
+        headers: { Authorization: `Bearer ${adminToken}` },
+        cache: 'no-store'
+      });
       if (res.ok) {
         const data = await res.json();
         setManifestData(data);
@@ -54,7 +57,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
 
   useEffect(() => {
     fetchManifest();
-  }, [activeProject]);
+  }, [activeProject.slug, adminToken]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -81,30 +84,73 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
     setUploadProgress(25);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('projectSlug', activeProject.slug);
-      formData.append('version', version);
-      formData.append('platform', platform);
-      formData.append('arch', arch);
+      let data: any;
+      const authHeaders = { Authorization: `Bearer ${adminToken}` };
+      const directUploadThreshold = 45 * 1024 * 1024;
 
-      setUploadProgress(60);
+      if (selectedFile.size > directUploadThreshold) {
+        // Avoid buffering very large packages in the Render Free web service.
+        const requestUpload = await fetch('/api/v1/admin/artifact-upload-url', {
+          method: 'POST',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectSlug: activeProject.slug,
+            version,
+            filename: selectedFile.name,
+            platform,
+            format: selectedFile.name.substring(selectedFile.name.lastIndexOf('.')),
+            arch
+          })
+        });
+        const ticket = await requestUpload.json();
+        if (!requestUpload.ok || !ticket.success || !ticket.uploadUrl || !ticket.ticketId) {
+          throw new Error(ticket.error || 'Không thể tạo URL upload trực tiếp lên R2.');
+        }
 
-      const res = await fetch('/api/v1/admin/upload-artifact', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${adminToken}`
-        },
-        body: formData
-      });
+        setUploadProgress(35);
+        const binaryUpload = await fetch(ticket.uploadUrl, {
+          method: 'PUT',
+          body: selectedFile
+        });
+        if (!binaryUpload.ok) {
+          throw new Error('R2 từ chối upload (' + binaryUpload.status + '). Kiểm tra CORS bucket và quyền token.');
+        }
+        setUploadProgress(80);
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Tải lên kho thất bại.');
+        const register = await fetch('/api/v1/admin/register-artifact', {
+          method: 'POST',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticketId: ticket.ticketId })
+        });
+        data = await register.json();
+        if (!register.ok || !data.success) {
+          throw new Error(data.error || 'Đã upload nhưng không thể đăng ký artifact. Không công khai tệp cho đến khi đăng ký thành công.');
+        }
+      } else {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('projectSlug', activeProject.slug);
+        formData.append('version', version);
+        formData.append('platform', platform);
+        formData.append('arch', arch);
+
+        setUploadProgress(60);
+        const res = await fetch('/api/v1/admin/upload-artifact', {
+          method: 'POST',
+          headers: authHeaders,
+          body: formData
+        });
+        data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Tải lên kho thất bại.');
+        }
       }
 
       setUploadProgress(100);
-      setRecentUpload(data);
+      setRecentUpload({
+        ...data,
+        message: 'Tải lên artifact thành công. Bản phát hành vẫn ở trạng thái nháp cho đến khi được xuất bản.'
+      });
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -129,8 +175,8 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setManifestData(data.manifest);
-        onNotify(data.message);
+        await fetchManifest();
+        onNotify('Đã cập nhật lại manifest từ metadata và artifact lưu trữ.');
         onRefreshData();
       } else {
         throw new Error(data.error || 'Không thể tạo lại manifest');
@@ -272,7 +318,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-[11px] text-slate-400">
-                Tệp được lưu vào: <code className="text-indigo-300 font-mono">storage/repository/artifacts/</code>
+                Tệp nhị phân: <code className="text-indigo-300 font-mono">Cloudflare R2</code> · metadata: <code className="text-indigo-300 font-mono">PostgreSQL</code>
               </span>
 
               <button
@@ -303,7 +349,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
             <div className="p-4 bg-emerald-950/40 border border-emerald-800/80 rounded-xl space-y-2 text-xs">
               <div className="text-emerald-400 font-bold flex items-center gap-2">
                 <span>✔</span>
-                <span>{recentUpload.message}</span>
+                <span>{recentUpload.message || 'Tải lên thành công.'}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300 font-mono text-[11px]">
                 <div>
@@ -376,7 +422,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
 
                 <div className="flex items-center gap-2 shrink-0">
                   <a
-                    href={art.url}
+                    href={art.url || art.downloadUrl}
                     download={art.filename}
                     className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1"
                   >
@@ -404,7 +450,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
 
             <div className="flex items-center gap-2">
               <a
-                href="/api/v1/public/manifest.json"
+                href="/api/v1/admin/manifest.json"
                 target="_blank"
                 rel="noreferrer"
                 className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-mono"
