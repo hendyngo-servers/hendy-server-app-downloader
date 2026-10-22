@@ -94,11 +94,6 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({ onSuccess, onCance
             />
           </div>
 
-          <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-1 text-[11px] text-slate-400">
-            <div className="font-semibold text-slate-300">Thông tin quản trị mặc định:</div>
-            <div>Tài khoản: <code className="text-indigo-400">admin</code> · Mật khẩu: <code className="text-indigo-400">ForgeAdmin2026!Secure</code></div>
-          </div>
-
           <div className="pt-2 flex items-center gap-3">
             <button
               type="button"
