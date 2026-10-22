@@ -30,7 +30,8 @@
     "@aws-sdk/s3-request-presigner": "^3.800.0",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
@@ -39,7 +40,6 @@
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.21.0",
     "typescript": "^7.0.2",
     "@types/express": "^4.17.21",
     "@types/pg": "^8.15.5"
