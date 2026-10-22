@@ -154,92 +154,75 @@ export default function App() {
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0] || SAMPLE_PROJECTS[0];
 
-  // Xử lý cập nhật mã nguồn tệp
-  const handleUpdateFileContent = (fileId: string, content: string) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        files: proj.files.map(f => f.id === fileId ? { ...f, content } : f)
-      };
-    }));
-
-    if (adminToken) {
-      fetch(`/api/v1/admin/projects/${activeProjectId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${adminToken}`
-        },
-        body: JSON.stringify(activeProject)
-      }).catch(() => {});
-    }
+  // Persist all Studio edits through the protected API, rather than changing React state only.
+  const persistProject = (updatedProject: ProjectTemplate) => {
+    setProjects(prev => prev.map(project => project.id === updatedProject.id ? updatedProject : project));
+    if (!adminToken) return;
+    fetch('/api/v1/admin/projects/' + encodeURIComponent(updatedProject.id), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + adminToken
+      },
+      body: JSON.stringify(updatedProject)
+    }).then(res => {
+      if (!res.ok) notify('Không thể lưu thay đổi lên máy chủ (' + res.status + '). Vui lòng đăng nhập lại hoặc thử lại.');
+    }).catch(() => notify('Mất kết nối khi lưu thay đổi. Kiểm tra máy chủ rồi thử lại.'));
   };
 
-  const handleAddFile = (name: string, path: string) => {
-    const newFile = {
-      id: `file-${Date.now()}`,
-      name,
-      path,
-      language: name.endsWith('.rs') ? 'rust' : name.endsWith('.cpp') ? 'cpp' : name.endsWith('.go') ? 'go' : name.endsWith('.json') ? 'json' : 'typescript',
-      content: `// Tệp mã nguồn mới: ${name}\n`,
-      encrypted: true,
-      securityHash: `sha256-${Date.now().toString(16)}`
-    };
+  const handleUpdateFileContent = (fileId: string, content: string) => {
+    persistProject({
+      ...activeProject,
+      files: activeProject.files.map(file => file.id === fileId ? { ...file, content } : file)
+    });
+  };
 
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        files: [...proj.files, newFile]
-      };
-    }));
-    notify(`Đã tạo tệp mã nguồn mới: ${name}`);
+  const handleAddFile = (name: string, filePath: string) => {
+    const newFile = {
+      id: 'file-' + Date.now(),
+      name,
+      path: filePath,
+      language: name.endsWith('.rs') ? 'rust' : name.endsWith('.cpp') ? 'cpp' : name.endsWith('.go') ? 'go' : name.endsWith('.json') ? 'json' : 'typescript',
+      content: '// Tệp mã nguồn mới: ' + name + '\n',
+      encrypted: false
+    };
+    persistProject({ ...activeProject, files: [...activeProject.files, newFile] });
+    notify('Đã tạo tệp mã nguồn mới: ' + name);
   };
 
   const handleDeleteFile = (fileId: string) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        files: proj.files.filter(f => f.id !== fileId)
-      };
-    }));
+    persistProject({
+      ...activeProject,
+      files: activeProject.files.filter(file => file.id !== fileId)
+    });
     notify('Đã xóa tệp mã nguồn khỏi cây dự án');
   };
 
-  // Đăng ký tệp nhị phân đã đóng gói
+  // Only artifacts uploaded and verified by the backend remain publishable after reload.
   const handleAddArtifact = (artifact: BuildArtifact) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      const latestRel = proj.releases[0];
-      if (!latestRel) return proj;
-
-      const updatedReleases = [
-        {
-          ...latestRel,
-          artifacts: [artifact, ...latestRel.artifacts.filter(a => a.id !== artifact.id)]
-        },
-        ...proj.releases.slice(1)
-      ];
-
-      return {
-        ...proj,
-        releases: updatedReleases
-      };
-    }));
+    const releases = [...activeProject.releases];
+    const latest = releases[0];
+    if (!latest) {
+      notify('Hãy tạo bản phát hành trước khi thêm artifact.');
+      return;
+    }
+    releases[0] = {
+      ...latest,
+      artifacts: [artifact, ...latest.artifacts.filter(item => item.id !== artifact.id)]
+    };
+    persistProject({ ...activeProject, releases });
   };
 
-  // Xuất bản bản phát hành mới
   const handlePublishRelease = (release: ReleaseVersion) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        currentVersion: release.version,
-        releases: [release, ...proj.releases]
-      };
-    }));
+    const releases = [
+      release,
+      ...activeProject.releases.filter(existing => existing.version !== release.version)
+    ];
+    persistProject({
+      ...activeProject,
+      currentVersion: release.version,
+      releases
+    });
   };
 
   return (
