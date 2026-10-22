@@ -212,7 +212,13 @@ async function getAllStoredArtifacts(): Promise<StoredArtifact[]> {
   return [...localArtifacts.values()].map(item => item.data);
 }
 async function getArtifactsForSlug(slug: string): Promise<StoredArtifact[]> {
-  return (await getAllStoredArtifacts()).filter(item => item.slug === slug);
+  if (pool) {
+    const result = await pool.query("SELECT data FROM artifacts WHERE slug = $1 ORDER BY created_at DESC", [slug]);
+    return result.rows.map(row => jsonValue<StoredArtifact>(row.data));
+  }
+  return [...localArtifacts.values()]
+    .map(item => item.data)
+    .filter(item => item.slug === slug);
 }
 async function findArtifactByFilename(filename: string): Promise<StoredArtifact | null> {
   if (pool) {
