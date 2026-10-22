@@ -641,9 +641,10 @@ app.post("/api/v1/admin/artifact-upload-url", requireAdminAuth, async (req, res,
       expiresAt: Date.now() + 15 * 60 * 1000
     };
     await saveTicket(ticket);
+    // Signed PUT intentionally does not sign Content-Type or custom metadata, so browsers can upload
+    // without having to reproduce SDK-specific canonical headers. The DB ticket controls registration.
     const uploadUrl = await getSignedUrl(s3, new PutObjectCommand({
-      Bucket: R2_BUCKET_NAME, Key: objectKey, ContentType: contentTypeFor(filename),
-      Metadata: { "upload-ticket": ticketId }
+      Bucket: R2_BUCKET_NAME, Key: objectKey
     }), { expiresIn: 900 });
     res.status(201).json({ success: true, ticketId, filename, objectKey, uploadUrl, method: "PUT", expiresIn: 900 });
   } catch (error) { next(error); }
