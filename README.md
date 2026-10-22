@@ -38,7 +38,7 @@ Set these values in the Render Dashboard:
 
 Set ADMIN_PASSWORD before the first production start. There are no default credentials in the backend. Production startup fails if PostgreSQL, R2, or admin credentials are missing.
 
-After deployment, check https://YOUR-RENDER-SERVICE.onrender.com/healthz. Expected response: a JSON status of ok. Render Free services may cold-start after inactivity, so the first request can be slower.
+After deployment, check https://YOUR-RENDER-SERVICE.onrender.com/healthz. Expected response: a JSON status of ok. Render Free web services spin down after 15 minutes without inbound traffic, and the next request takes about one minute to start. Render says Free instances should not be used for production applications; use this plan only for a hobby/preview environment. Render can also suspend a Free web service that generates unusually high external traffic, including traffic to a database or object storage.
 
 ## 3. Deploy Cloudflare Pages + Functions
 
