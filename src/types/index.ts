@@ -162,12 +162,12 @@ export interface CloudflareWorkersPagesConfig {
 }
 
 export interface SecurityAuditReport {
-  sourceCodeExposureRisk: '0.00% (An Toàn Tuyệt Đối)';
-  sourceEncryption: 'AES-256-GCM Hardware Sealed';
-  interfaceIsolation: 'Tách Biệt Hoàn Toàn (Air-Gapped Subdomain)';
-  binaryStripping: 'Enabled (Đã gỡ bỏ toàn bộ debug symbols)';
-  apiGatewayProtection: 'Zero-Trust RBAC Token Enforced';
-  distributionStorage: 'Dedicated Cloudflare R2 / Global Edge CDN';
+  sourceCodeExposureRisk: string;
+  sourceEncryption: string;
+  interfaceIsolation: string;
+  binaryStripping: string;
+  apiGatewayProtection: string;
+  distributionStorage: string;
 }
 
 export interface PipelineStage {
