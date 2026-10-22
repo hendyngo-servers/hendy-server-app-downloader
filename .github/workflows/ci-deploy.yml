@@ -60,5 +60,19 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main
 
+  deploy-cloudflare-worker:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Deploy standalone API gateway Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config=wrangler.worker.toml
+
   # Render auto-deploys the Node backend from this repository when main changes.
   # DATABASE_URL, ADMIN_PASSWORD and R2 keys must be set in Render Dashboard.
