@@ -41,9 +41,17 @@ jobs:
           retention-days: 1
 
   deploy-cloudflare-pages:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
+      vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
     needs: build-and-check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      RENDER_BACKEND_ORIGIN: ${{ secrets.RENDER_BACKEND_ORIGIN }}
     steps:
       - name: Checkout (includes Pages Functions)
         uses: actions/checkout@v4
@@ -55,6 +63,48 @@ jobs:
         run: npm install
       - name: Build frontend
         run: npm run build
+      - name: Validate backend origin and prepare Pages binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+
+          const raw = process.env.RENDER_BACKEND_ORIGIN?.trim();
+          if (!raw) {
+            console.error("Missing repository secret RENDER_BACKEND_ORIGIN. Set it to the HTTPS origin of the deployed Render API.");
+            process.exit(1);
+          }
+
+          let backend;
+          try {
+            backend = new URL(raw);
+          } catch {
+            console.error("RENDER_BACKEND_ORIGIN must be a valid URL.");
+            process.exit(1);
+          }
+
+          if (
+            backend.protocol !== "https:" ||
+            backend.pathname !== "/" ||
+            backend.search ||
+            backend.hash ||
+            backend.username ||
+            backend.password
+          ) {
+            console.error("RENDER_BACKEND_ORIGIN must be an HTTPS origin only, without a path, query, fragment, or credentials.");
+            process.exit(1);
+          }
+
+          writeFileSync(".wrangler-pages-secrets.env", "BACKEND_ORIGIN=" + backend.origin + "\n", { mode: 0o600 });
+          NODE
+      - name: Set Pages Functions backend binding
+        uses: cloudflare/wrangler-action@v4
+        with:
+          packageManager: npm
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages secret bulk .wrangler-pages-secrets.env --project-name=hendy-server-app-downloader
       - name: Deploy Cloudflare Pages and Functions
         uses: cloudflare/wrangler-action@v4
         with:
@@ -62,14 +112,59 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main
+      - name: Remove temporary binding file
+        if: always()
+        run: rm -f .wrangler-pages-secrets.env
 
   deploy-cloudflare-worker:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
+      vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
     needs: build-and-check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      RENDER_BACKEND_ORIGIN: ${{ secrets.RENDER_BACKEND_ORIGIN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate backend origin and prepare Worker binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+
+          const raw = process.env.RENDER_BACKEND_ORIGIN?.trim();
+          if (!raw) {
+            console.error("Missing repository secret RENDER_BACKEND_ORIGIN. Set it to the HTTPS origin of the deployed Render API.");
+            process.exit(1);
+          }
+
+          let backend;
+          try {
+            backend = new URL(raw);
+          } catch {
+            console.error("RENDER_BACKEND_ORIGIN must be a valid URL.");
+            process.exit(1);
+          }
+
+          if (
+            backend.protocol !== "https:" ||
+            backend.pathname !== "/" ||
+            backend.search ||
+            backend.hash ||
+            backend.username ||
+            backend.password
+          ) {
+            console.error("RENDER_BACKEND_ORIGIN must be an HTTPS origin only, without a path, query, fragment, or credentials.");
+            process.exit(1);
+          }
+
+          writeFileSync(".wrangler-worker-secrets.env", "BACKEND_ORIGIN=" + backend.origin + "\n", { mode: 0o600 });
+          NODE
       - name: Deploy standalone API gateway Worker
         uses: cloudflare/wrangler-action@v4
         with:
@@ -77,6 +172,16 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config=wrangler.worker.toml
+      - name: Set Worker backend binding
+        uses: cloudflare/wrangler-action@v4
+        with:
+          packageManager: npm
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: secret bulk .wrangler-worker-secrets.env --config=wrangler.worker.toml
+      - name: Remove temporary binding file
+        if: always()
+        run: rm -f .wrangler-worker-secrets.env
 
   # Render auto-deploys the Node backend from this repository when main changes.
   # DATABASE_URL, ADMIN_PASSWORD and R2 keys must be set in Render Dashboard.
