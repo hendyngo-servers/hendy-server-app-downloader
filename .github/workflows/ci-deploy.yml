@@ -38,6 +38,8 @@ jobs:
         run: npm run test:api
       - name: Build frontend
         run: npm run build
+      - name: Validate Worker and static asset configuration
+        run: npx wrangler@4.152.0 deploy --dry-run --config=wrangler.toml
       - name: Upload static build
         uses: actions/upload-artifact@v4
         with:
@@ -110,14 +112,14 @@ jobs:
           packageManager: npm
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages secret bulk .wrangler-pages-secrets.env --project-name=hendy-server-app-downloader
+          command: pages secret bulk .wrangler-pages-secrets.env --project-name=hendy-server-app-downloader --config=wrangler.pages.toml
       - name: Deploy Cloudflare Pages and Functions
         uses: cloudflare/wrangler-action@v4
         with:
           packageManager: npm
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main
+          command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main --config=wrangler.pages.toml
       - name: Remove temporary binding file
         if: always()
         run: rm -f .wrangler-pages-secrets.env
@@ -136,6 +138,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build frontend assets
+        run: npm run build
       - name: Validate backend origin and prepare Worker binding
         shell: bash
         run: |
@@ -145,7 +155,7 @@ jobs:
 
           const raw = process.env.RENDER_BACKEND_ORIGIN?.trim();
           if (!raw) {
-            console.error("Missing repository secret RENDER_BACKEND_ORIGIN. Set it to the HTTPS origin of the deployed Render API.");
+            console.error("Missing repository secret RENDER_BACKEND_ORIGIN.");
             process.exit(1);
           }
 
@@ -171,6 +181,20 @@ jobs:
 
           writeFileSync(".wrangler-worker-secrets.env", "BACKEND_ORIGIN=" + backend.origin + "\n", { mode: 0o600 });
           NODE
+      - name: Deploy full app to Cloudflare Workers (SPA + API gateway)
+        uses: cloudflare/wrangler-action@v4
+        with:
+          packageManager: npm
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config=wrangler.toml
+      - name: Set full app Worker backend secret
+        uses: cloudflare/wrangler-action@v4
+        with:
+          packageManager: npm
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: secret bulk .wrangler-worker-secrets.env --config=wrangler.toml
       - name: Deploy standalone API gateway Worker
         uses: cloudflare/wrangler-action@v4
         with:
@@ -178,7 +202,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config=wrangler.worker.toml
-      - name: Set Worker backend binding
+      - name: Set standalone API gateway backend secret
         uses: cloudflare/wrangler-action@v4
         with:
           packageManager: npm
