@@ -1,5 +1,11 @@
-# Cloudflare Pages configuration (Pages Functions execute on the Workers runtime).
-# Configure BACKEND_ORIGIN as a runtime variable in the Pages dashboard.
+# Default deployment target for Cloudflare Workers Builds.
+# Run "npm run build" before "npx wrangler deploy" to upload the SPA and API Worker.
 name = "hendy-server-app-downloader"
+main = "worker/index.ts"
 compatibility_date = "2026-10-23"
-pages_build_output_dir = "./dist"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
