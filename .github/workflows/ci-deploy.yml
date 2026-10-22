@@ -54,8 +54,9 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Deploy Cloudflare Pages and Functions
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
+          packageManager: npm
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main
@@ -68,7 +69,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Deploy standalone API gateway Worker
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
+        with: PACKAGE_MANAGER_PLACEHOLDER
         with:
           apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
