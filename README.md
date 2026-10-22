@@ -54,6 +54,8 @@ Add these **repository secrets**:
 
 The Cloudflare API token must be scoped to the target account with permission to edit/deploy **Cloudflare Pages** and **Workers Scripts**. Never place the API token or R2 credentials in source code, chat, frontend variables or committed files.
 
+If the Cloudflare GitHub App is also running a separate **Workers Builds** check for the legacy Worker named `hendy-server-app-downloader`, disable that service's automatic build/deploy before relying on this workflow, or configure that service explicitly to use `wrangler.worker.toml`. This workflow deploys the edge gateway as `hendy-server-app-downloader-api`; do not have two deployment systems trying to publish the same Worker.
+
 Add a **repository variable** named `CLOUDFLARE_DEPLOY_ENABLED` with exact value `true` only after the Pages project exists and the three secrets above are set. Leave it unset or set to `false` to run CI checks without deploying. The workflow can deploy on pushes to `main` and by manually selecting **Actions → Build and deploy Hendy Server App Downloader → Run workflow** on `main`.
 
 ## 4. Deploy Cloudflare Pages + Functions and Worker
