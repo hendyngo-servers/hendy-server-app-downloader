@@ -149,6 +149,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
       setUploadProgress(100);
       setRecentUpload({
         ...data,
+        directDownloadUrl: data.directDownloadUrl || data.artifact?.downloadUrl,
         message: 'Tải lên artifact thành công. Bản phát hành vẫn ở trạng thái nháp cho đến khi được xuất bản.'
       });
       setSelectedFile(null);
@@ -391,7 +392,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
                 className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1.5"
               >
                 <span>🔄</span>
-                <span>Quét Đĩa & Tái Tạo Manifest</span>
+                <span>Đồng Bộ Manifest Từ Database</span>
               </button>
             </div>
           </div>
@@ -455,7 +456,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
                 rel="noreferrer"
                 className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-mono"
               >
-                Mở /api/v1/public/manifest.json ↗
+                Mở manifest quản trị /api/v1/admin/manifest.json ↗
               </a>
               <button
                 onClick={() => {
