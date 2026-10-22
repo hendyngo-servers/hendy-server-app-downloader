@@ -28,6 +28,8 @@ jobs:
         run: npm install
       - name: Type-check
         run: npm run lint
+      - name: API smoke tests
+        run: npm run test:api
       - name: Build frontend
         run: npm run build
       - name: Upload static build
@@ -39,7 +41,7 @@ jobs:
           retention-days: 1
 
   deploy-cloudflare-pages:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
     needs: build-and-check
     runs-on: ubuntu-latest
     steps:
@@ -62,7 +64,7 @@ jobs:
           command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main
 
   deploy-cloudflare-worker:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
     needs: build-and-check
     runs-on: ubuntu-latest
     steps:
