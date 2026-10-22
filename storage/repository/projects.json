@@ -1,0 +1,838 @@
+[
+  {
+    "id": "proj-hyperterminal",
+    "name": "HyperTerminal Pro",
+    "slug": "hyperterminal",
+    "tagline": "Phần Mềm Giám Sát Hệ Thống & Giả Lập Terminal Đa Nền Tảng Tăng Tốc Phần Cứng",
+    "description": "Ứng dụng giám sát tài nguyên CPU/GPU, luồng mạng thời gian thực và quản lý dòng lệnh đa phiên bản với độ trễ cực thấp cho mọi hệ điều hành máy tính và web.",
+    "category": "Công Cụ Hệ Thống & Quản Trị",
+    "framework": "Rust + Tauri",
+    "currentVersion": "v2.4.0",
+    "bundleIdentifier": "vn.forgeos.hyperterminal",
+    "publisher": "ForgeOS Enterprise Việt Nam",
+    "websiteUrl": "https://hyperterminal.forgeos.vn",
+    "githubRepo": "https://github.com/forgeos-enterprise/hyperterminal-core",
+    "securityLevel": "Enterprise High",
+    "storeMeta": {
+      "rating": 4.9,
+      "reviewCount": 3840,
+      "downloadsCount": "150K+",
+      "badge": "EditorChoice",
+      "badgeLabel": "Lựa Chọn Của Biên Tập Viên",
+      "ageRating": "Phù hợp mọi lứa tuổi",
+      "categoryLabel": "Công Cụ Năng Suất & Kỹ Thuật",
+      "screenshots": [
+        {
+          "id": "ss-1",
+          "caption": "Bảng giám sát GPU, CPU và luồng mạng thời gian thực với độ trễ < 1ms",
+          "mode": "desktop"
+        },
+        {
+          "id": "ss-2",
+          "caption": "Trình quản lý PTY phiên bản đa luồng hỗ trợ phân chia cửa sổ không giới hạn",
+          "mode": "desktop"
+        },
+        {
+          "id": "ss-3",
+          "caption": "Khởi chạy trực tiếp qua WebAssembly không cần quyền quản trị viên",
+          "mode": "canvas"
+        }
+      ],
+      "dataSafety": {
+        "collectedData": "Không thu thập bất kỳ dữ liệu cá nhân hay lịch sử dòng lệnh nào",
+        "securityPractice": "Mã hóa hoàn toàn tại máy khách, không gửi dữ liệu ra máy chủ bên ngoài",
+        "encryptionStandard": "AES-256-GCM Hardware TPM Enclave"
+      },
+      "systemRequirements": {
+        "minOs": "Windows 10+, macOS 11.0+, Ubuntu 20.04+, Chrome 90+",
+        "recommendedRam": "4 GB RAM (Tối thiểu 1 GB RAM)",
+        "diskSpace": "85 MB dung lượng trống",
+        "gpuReq": "Hỗ trợ phần cứng DirectX 11, Metal 2 hoặc Vulkan"
+      },
+      "reviews": [
+        {
+          "id": "rev-1",
+          "author": "Nguyễn Minh Tuấn (Kỹ sư DevOps tại FPT Software)",
+          "rating": 5,
+          "date": "20 Tháng 10, 2026",
+          "comment": "Ứng dụng mở cực kỳ nhanh trên Apple Silicon M3, chiếm chưa tới 25MB RAM. Tính năng phân chia cửa sổ PTY giúp mình quản lý cụm Kubernetes rất tiện lợi.",
+          "platform": "macOS Universal",
+          "verifiedInstall": true
+        },
+        {
+          "id": "rev-2",
+          "author": "Trần Văn Hoàng (Quản trị viên Hệ thống Viettel IDC)",
+          "rating": 5,
+          "date": "18 Tháng 10, 2026",
+          "comment": "Chứng chỉ EV Code Signing chuẩn chỉ, cài trên Windows 11 Enterprise không hề bị SmartScreen chặn. Rất khuyến nghị cho các nhóm kỹ thuật.",
+          "platform": "Windows 11 x86_64",
+          "verifiedInstall": true
+        },
+        {
+          "id": "rev-3",
+          "author": "Lê Thu Trang (Chuyên viên An toàn thông tin)",
+          "rating": 5,
+          "date": "15 Tháng 10, 2026",
+          "comment": "Thích nhất là có thể chạy thử trực tiếp WebAssembly trên trình duyệt trước khi tải tệp nhị phân về máy. Đánh giá 5 sao!",
+          "platform": "Web / Linux AppImage",
+          "verifiedInstall": true
+        }
+      ]
+    },
+    "files": [
+      {
+        "id": "file-tauri-conf",
+        "name": "tauri.conf.json",
+        "path": "/src-tauri/tauri.conf.json",
+        "language": "json",
+        "encrypted": true,
+        "securityHash": "sha256-a19e83f2001c9a",
+        "content": "{\n  \"$schema\": \"https://raw.githubusercontent.com/tauri-apps/tauri/dev/tooling/cli/schema.json\",\n  \"build\": {\n    \"beforeDevCommand\": \"npm run dev\",\n    \"beforeBuildCommand\": \"npm run build\",\n    \"devPath\": \"http://localhost:3000\",\n    \"distDir\": \"../dist\"\n  },\n  \"package\": {\n    \"productName\": \"HyperTerminal\",\n    \"version\": \"2.4.0\"\n  },\n  \"tauri\": {\n    \"bundle\": {\n      \"active\": true,\n      \"targets\": [\"msi\", \"nsis\", \"dmg\", \"deb\", \"appimage\"],\n      \"identifier\": \"vn.forgeos.hyperterminal\",\n      \"icon\": [\"icons/32x32.png\", \"icons/128x128.png\", \"icons/icon.icns\", \"icons/icon.ico\"],\n      \"windows\": {\n        \"certificateThumbprint\": \"EV_COMMERCIAL_CERT_VN_2026\",\n        \"digestAlgorithm\": \"sha256\",\n        \"wix\": { \"language\": \"vi-VN\" }\n      },\n      \"macOS\": {\n        \"entitlements\": \"./entitlements.plist\",\n        \"minimumSystemVersion\": \"11.0\",\n        \"hardenedRuntime\": true\n      }\n    },\n    \"windows\": [\n      {\n        \"title\": \"HyperTerminal Pro - Tiêu Chuẩn Thương Mại\",\n        \"width\": 1100,\n        \"height\": 720,\n        \"resizable\": true,\n        \"fullscreen\": false\n      }\n    ]\n  }\n}"
+      },
+      {
+        "id": "file-main-rs",
+        "name": "main.rs",
+        "path": "/src-tauri/src/main.rs",
+        "language": "rust",
+        "isEntry": true,
+        "encrypted": true,
+        "securityHash": "sha256-b84719fbc901a",
+        "content": "// Ngăn chặn cửa sổ console phụ trên Windows trong bản phát hành thương mại\n#![cfg_attr(not(debug_assertions), windows_subsystem = \"windows\")]\n\nuse tauri::{command, State};\nuse std::sync::Mutex;\n\nstruct TerminalState {\n    active_sessions: Mutex<u32>,\n}\n\n#[command]\nfn get_system_telemetry() -> serde_json::Value {\n    serde_json::json!({\n        \"platform\": std::env::consts::OS,\n        \"arch\": std::env::consts::ARCH,\n        \"cores\": num_cpus::get(),\n        \"status\": \"hoạt động ổn định\",\n        \"security\": \"EV Signature Verified\"\n    })\n}\n\n#[command]\nfn spawn_pty_session(shell: String) -> Result<String, String> {\n    println!(\"Khởi tạo phiên PTY với shell bảo mật: {}\", shell);\n    Ok(\"session_pty_001_ready\".into())\n}\n\nfn main() {\n    tauri::Builder::default()\n        .manage(TerminalState { active_sessions: Mutex::new(0) })\n        .invoke_handler(tauri::generate_handler![get_system_telemetry, spawn_pty_session])\n        .run(tauri::generate_context!())\n        .expect(\"Lỗi trong quá trình khởi chạy phần mềm HyperTerminal\");\n}"
+      },
+      {
+        "id": "file-cargo-toml",
+        "name": "Cargo.toml",
+        "path": "/src-tauri/Cargo.toml",
+        "language": "toml",
+        "content": "[package]\nname = \"hyperterminal\"\nversion = \"2.4.0\"\ndescription = \"Phần mềm terminal đa nền tảng tăng tốc phần cứng\"\nedition = \"2021\"\n\n[build-dependencies]\ntauri-build = { version = \"2.0.0\", features = [] }\n\n[dependencies]\ntauri = { version = \"2.0.0\", features = [\"tray-icon\", \"notification\"] }\nserde = { version = \"1.0\", features = [\"derive\"] }\nserde_json = \"1.0\"\nnum_cpus = \"1.16\"\nportable-pty = \"0.8\"\n"
+      },
+      {
+        "id": "file-frontend-app",
+        "name": "App.tsx",
+        "path": "/src/App.tsx",
+        "language": "typescript",
+        "content": "import React, { useState } from 'react';\n\nexport default function HyperTerminalUI() {\n  const [history, setHistory] = useState<string[]>([\n    'HyperTerminal Pro v2.4.0 [x86_64/arm64-apple-darwin]',\n    'Kết nối máy chủ: pty.local.0 - Trạng thái bảo mật cao',\n    'Nhập \"help\", \"sysinfo\", \"kiem-tra\" hoặc \"top\" để bắt đầu.'\n  ]);\n  const [command, setCommand] = useState('');\n\n  const executeCommand = (e: React.FormEvent) => {\n    e.preventDefault();\n    if (!command.trim()) return;\n    setHistory(prev => [...prev, `$ ${command}`, `Thực thi lệnh '${command}' thành công.`]);\n    setCommand('');\n  };\n\n  return (\n    <div className=\"bg-slate-950 text-emerald-400 font-mono p-4 rounded-lg h-full flex flex-col\">\n      <div className=\"flex-1 overflow-y-auto space-y-1\">\n        {history.map((line, idx) => (\n          <div key={idx}>{line}</div>\n        ))}\n      </div>\n      <form onSubmit={executeCommand} className=\"flex gap-2 pt-2 border-t border-slate-800\">\n        <span className=\"text-slate-500\">$</span>\n        <input\n          value={command}\n          onChange={(e) => setCommand(e.target.value)}\n          placeholder=\"Nhập lệnh thực thi...\"\n          className=\"bg-transparent border-none outline-none flex-1 text-slate-100\"\n        />\n      </form>\n    </div>\n  );\n}"
+      }
+    ],
+    "platforms": [
+      {
+        "platform": "windows",
+        "displayName": "Windows (10 / 11 / Server 64-bit)",
+        "iconName": "windows",
+        "enabled": true,
+        "selectedArch": "x86_64",
+        "selectedFormat": ".exe",
+        "signingEnabled": true,
+        "formats": [
+          {
+            "format": ".exe",
+            "name": "Trình Cài Đặt NSIS Tự Động",
+            "description": "Gói cài đặt độc lập với lối tắt Desktop và Menu Start",
+            "defaultSelected": true,
+            "architectures": [
+              "x86_64",
+              "arm64"
+            ]
+          },
+          {
+            "format": ".msi",
+            "name": "Gói Doanh Nghiệp Windows (MSI)",
+            "description": "Triển khai hàng loạt qua Active Directory / GPO",
+            "defaultSelected": false,
+            "architectures": [
+              "x86_64"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "macos",
+        "displayName": "macOS (Apple Silicon & Intel Universal)",
+        "iconName": "apple",
+        "enabled": true,
+        "selectedArch": "universal",
+        "selectedFormat": ".dmg",
+        "signingEnabled": true,
+        "entitlements": [
+          "com.apple.security.network.client",
+          "com.apple.security.files.user-selected.read-write"
+        ],
+        "formats": [
+          {
+            "format": ".dmg",
+            "name": "Đĩa Ảnh Apple Disk Image (DMG)",
+            "description": "Kéo thả ứng dụng với hình nền hướng dẫn chuẩn Apple",
+            "defaultSelected": true,
+            "architectures": [
+              "universal",
+              "arm64",
+              "x86_64"
+            ]
+          },
+          {
+            "format": ".pkg",
+            "name": "Bộ Cài Đặt Hệ Thống (.pkg)",
+            "description": "Cài đặt tự động không cần can thiệp cho quản trị viên MDM",
+            "defaultSelected": false,
+            "architectures": [
+              "universal"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "linux",
+        "displayName": "Linux (Ubuntu, Debian, Fedora, Arch)",
+        "iconName": "linux",
+        "enabled": true,
+        "selectedArch": "x86_64",
+        "selectedFormat": ".AppImage",
+        "signingEnabled": false,
+        "formats": [
+          {
+            "format": ".AppImage",
+            "name": "Gói Chạy Mọi Nơi AppImage",
+            "description": "Nhấp đúp chuột để chạy ngay, tích hợp sẵn thư viện độc lập",
+            "defaultSelected": true,
+            "architectures": [
+              "x86_64",
+              "arm64"
+            ]
+          },
+          {
+            "format": ".deb",
+            "name": "Gói Cài Đặt Debian / Ubuntu (.deb)",
+            "description": "Tích hợp kho quản trị apt-get và dpkg",
+            "defaultSelected": false,
+            "architectures": [
+              "x86_64",
+              "arm64"
+            ]
+          },
+          {
+            "format": ".tar.gz",
+            "name": "Tệp Nén Nhị Phân (.tar.gz)",
+            "description": "Mã nhị phân trực tiếp cho máy chủ và môi trường CLI",
+            "defaultSelected": false,
+            "architectures": [
+              "x86_64"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "android",
+        "displayName": "Android (Gói Cài Đặt Di Động)",
+        "iconName": "android",
+        "enabled": true,
+        "selectedArch": "arm64",
+        "selectedFormat": ".apk",
+        "signingEnabled": true,
+        "formats": [
+          {
+            "format": ".apk",
+            "name": "Tệp Ứng Dụng Android APK",
+            "description": "Cài đặt trực tiếp hoặc nạp qua ADB/Google Play",
+            "defaultSelected": true,
+            "architectures": [
+              "arm64"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "web",
+        "displayName": "Trình Duyệt Web (WASM & PWA)",
+        "iconName": "globe",
+        "enabled": true,
+        "selectedArch": "wasm",
+        "selectedFormat": ".wasm",
+        "signingEnabled": false,
+        "formats": [
+          {
+            "format": ".wasm",
+            "name": "Môi Trường Trực Tiếp WebAssembly",
+            "description": "Chạy trực tiếp trong hộp cát trình duyệt, không cần cài đặt",
+            "defaultSelected": true,
+            "architectures": [
+              "wasm"
+            ]
+          }
+        ]
+      }
+    ],
+    "releases": [
+      {
+        "version": "v2.4.0",
+        "tag": "v2.4.0",
+        "releaseDate": "22 Tháng 10, 2026",
+        "channel": "stable",
+        "title": "Nâng Cấp Hiệu Năng GPU & Tương Thích Đa Nền Tảng Thương Mại",
+        "changelog": [
+          "Hỗ trợ nhị phân Universal ARM64 cho Apple Silicon M-Series và Intel x86_64.",
+          "Nâng cấp nhân PTY Rust 0.8 giảm 60% độ trễ nhập liệu dòng lệnh.",
+          "Tích hợp chứng chỉ ký số thương mại EV Code Signing, loại bỏ cảnh báo SmartScreen.",
+          "Đối soát mã băm SHA-256 tự động trên mọi tệp cài đặt phân phối."
+        ],
+        "published": true,
+        "artifacts": [
+          {
+            "id": "art-test-release-v2_5_0.apk-1792701776465",
+            "platform": "android",
+            "format": ".apk",
+            "arch": "arm64",
+            "filename": "test-release-v2_5_0.apk",
+            "sizeBytes": 52,
+            "sha256": "db9d297513bc50897cf4a04e6a92b65ef2b2767c86a6c5ab104ce2084d64e0be",
+            "downloadUrl": "/api/v1/downloads/artifacts/test-release-v2_5_0.apk",
+            "createdAt": "2026-10-22T20:42:56.465Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (HSM Hardware Sealed)",
+              "timestamp": "2026-10-22T20:42:56.465Z",
+              "serialNumber": "SN-2026-DB9D297513BC"
+            }
+          },
+          {
+            "id": "art-hyperterminal-v2.4.0-win-x64.exe-1792701753216",
+            "platform": "windows",
+            "format": ".exe",
+            "arch": "x86_64",
+            "filename": "hyperterminal-v2.4.0-win-x64.exe",
+            "sizeBytes": 65613,
+            "sha256": "7670d8e41172f80d2f99ca9a1e079b62e52f38649b53ec21764a0d4f8bf06b49",
+            "downloadUrl": "/api/v1/downloads/artifacts/hyperterminal-v2.4.0-win-x64.exe",
+            "createdAt": "2026-10-22T20:42:33.216Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.216Z",
+              "serialNumber": "SN-2026-7670D8E41172"
+            }
+          },
+          {
+            "id": "art-hyperterminal-v2.4.0-win-x64.msi-1792701753217",
+            "platform": "windows",
+            "format": ".msi",
+            "arch": "x86_64",
+            "filename": "hyperterminal-v2.4.0-win-x64.msi",
+            "sizeBytes": 65589,
+            "sha256": "29b4d387310f6c9e0c12815d5f9cff15279b551f7481ed3a9805a12dc41a7ddd",
+            "downloadUrl": "/api/v1/downloads/artifacts/hyperterminal-v2.4.0-win-x64.msi",
+            "createdAt": "2026-10-22T20:42:33.217Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.217Z",
+              "serialNumber": "SN-2026-29B4D387310F"
+            }
+          },
+          {
+            "id": "art-hyperterminal-v2.4.0-mac-universal.dmg-1792701753217",
+            "platform": "macos",
+            "format": ".dmg",
+            "arch": "universal",
+            "filename": "hyperterminal-v2.4.0-mac-universal.dmg",
+            "sizeBytes": 65598,
+            "sha256": "f26a4493a52fd20e23b5960eadab99e3a6b240158ae5d24de5f615018b84e87f",
+            "downloadUrl": "/api/v1/downloads/artifacts/hyperterminal-v2.4.0-mac-universal.dmg",
+            "createdAt": "2026-10-22T20:42:33.217Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.217Z",
+              "serialNumber": "SN-2026-F26A4493A52F"
+            }
+          },
+          {
+            "id": "art-hyperterminal-v2.4.0-linux-x86_64.AppImage-1792701753217",
+            "platform": "linux",
+            "format": ".AppImage",
+            "arch": "x86_64",
+            "filename": "hyperterminal-v2.4.0-linux-x86_64.AppImage",
+            "sizeBytes": 65595,
+            "sha256": "42856a9eeaa356ac5a8018449fdfec3ae4a942e99206ecd127420ec7f80d6d88",
+            "downloadUrl": "/api/v1/downloads/artifacts/hyperterminal-v2.4.0-linux-x86_64.AppImage",
+            "createdAt": "2026-10-22T20:42:33.217Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.217Z",
+              "serialNumber": "SN-2026-42856A9EEAA3"
+            }
+          },
+          {
+            "id": "art-hyperterminal-v2.4.0-android-arm64.apk-1792701753218",
+            "platform": "android",
+            "format": ".apk",
+            "arch": "arm64",
+            "filename": "hyperterminal-v2.4.0-android-arm64.apk",
+            "sizeBytes": 65589,
+            "sha256": "12549bce21b3264ca9a251069e7b38856693b933ef97bab02d9963e1807b8d75",
+            "downloadUrl": "/api/v1/downloads/artifacts/hyperterminal-v2.4.0-android-arm64.apk",
+            "createdAt": "2026-10-22T20:42:33.218Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.218Z",
+              "serialNumber": "SN-2026-12549BCE21B3"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "proj-omnicanvas",
+    "name": "OmniCanvas Studio",
+    "slug": "omnicanvas",
+    "tagline": "Bộ Phần Mềm Thiết Kế Đồ Họa Vector & Dàn Trang Giao Diện Chuẩn Doanh Nghiệp",
+    "description": "Công cụ vẽ vector chính xác cao, chỉnh sửa đường cong Bezier và thiết kế hệ thống UI/UX được biên dịch ra nhị phân máy tính và WebAssembly chạy mượt mà 60 FPS.",
+    "category": "Đồ Họa & Thiết Kế Giao Diện",
+    "framework": "C++ / Wasm",
+    "currentVersion": "v1.8.2",
+    "bundleIdentifier": "vn.forgeos.omnicanvas",
+    "publisher": "Omni Design Systems VN",
+    "websiteUrl": "https://omnicanvas.forgeos.vn",
+    "githubRepo": "https://github.com/forgeos-enterprise/omnicanvas",
+    "securityLevel": "Commercial Standard",
+    "storeMeta": {
+      "rating": 4.8,
+      "reviewCount": 2150,
+      "downloadsCount": "80K+",
+      "badge": "Trending",
+      "badgeLabel": "Xu Hướng Sáng Tạo",
+      "ageRating": "Phù hợp mọi lứa tuổi",
+      "categoryLabel": "Thiết Kế Đồ Họa & Minh Họa",
+      "screenshots": [
+        {
+          "id": "ss-omni-1",
+          "caption": "Chỉnh sửa đường cong Bezier đa điểm với công nghệ rasterization Skia GPU",
+          "mode": "canvas"
+        },
+        {
+          "id": "ss-omni-2",
+          "caption": "Xuất tệp SVG chuẩn công nghiệp và nhúng WebAssembly thời gian thực",
+          "mode": "desktop"
+        }
+      ],
+      "dataSafety": {
+        "collectedData": "Không thu thập bất kỳ hình ảnh hay bản vẽ thiết kế nào của người dùng",
+        "securityPractice": "Lưu trữ cục bộ trực tiếp trên ổ cứng thiết bị",
+        "encryptionStandard": "Chuẩn lưu trữ an toàn OS Sandbox"
+      },
+      "systemRequirements": {
+        "minOs": "Windows 10, macOS Monterey 12.0+, Linux x86_64",
+        "recommendedRam": "8 GB RAM (Tối thiểu 2 GB RAM)",
+        "diskSpace": "140 MB dung lượng trống",
+        "gpuReq": "Bộ xử lý đồ họa tích hợp hoặc rời hỗ trợ WebGL 2.0 / Metal"
+      },
+      "reviews": [
+        {
+          "id": "rev-omni-1",
+          "author": "Đặng Thanh Tâm (Trưởng nhóm UI/UX tại VNG Corporation)",
+          "rating": 5,
+          "date": "21 Tháng 10, 2026",
+          "comment": "Công cụ vẽ vector cực nhẹ và mượt. Đường cong Bezier chuẩn xác từng pixel, xuất tệp SVG sạch không bị rác code.",
+          "platform": "macOS Universal",
+          "verifiedInstall": true
+        }
+      ]
+    },
+    "files": [
+      {
+        "id": "file-cmakelists",
+        "name": "CMakeLists.txt",
+        "path": "/CMakeLists.txt",
+        "language": "cmake",
+        "content": "cmake_minimum_required(VERSION 3.22)\nproject(OmniCanvas VERSION 1.8.2 LANGUAGES CXX)\n\nset(CMAKE_CXX_STANDARD 20)\nset(CMAKE_CXX_STANDARD_REQUIRED ON)\n\nif(EMSCRIPTEN)\n  add_executable(omnicanvas src/core/engine.cpp)\n  set_target_properties(omnicanvas PROPERTIES LINK_FLAGS \"-s WASM=1 -s USE_SDL=2 -O3\")\nelse()\n  add_executable(omnicanvas src/core/engine.cpp)\nendif()\n"
+      },
+      {
+        "id": "file-engine-cpp",
+        "name": "engine.cpp",
+        "path": "/src/core/engine.cpp",
+        "language": "cpp",
+        "isEntry": true,
+        "encrypted": true,
+        "securityHash": "sha256-c7719283749182",
+        "content": "#include <iostream>\n#include <vector>\n\nstruct VectorNode {\n    float x, y;\n    float control_x1, control_y1;\n    float control_x2, control_y2;\n};\n\nclass CanvasEngine {\npublic:\n    void render_path(const std::vector<VectorNode>& nodes) {\n        std::cout << \"Rendering Bezier curve with \" << nodes.size() << \" control points.\" << std::endl;\n    }\n};\n\nint main() {\n    std::cout << \"OmniCanvas Vector Engine v1.8.2 khoi dong thanh cong.\" << std::endl;\n    return 0;\n}"
+      }
+    ],
+    "platforms": [
+      {
+        "platform": "windows",
+        "displayName": "Windows (.exe / .msi)",
+        "iconName": "windows",
+        "enabled": true,
+        "selectedArch": "x86_64",
+        "selectedFormat": ".exe",
+        "signingEnabled": true,
+        "formats": [
+          {
+            "format": ".exe",
+            "name": "Trình Cài Đặt NSIS",
+            "description": "Bộ cài đặt chính thức cho Windows",
+            "defaultSelected": true,
+            "architectures": [
+              "x86_64"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "macos",
+        "displayName": "macOS (.dmg Universal)",
+        "iconName": "apple",
+        "enabled": true,
+        "selectedArch": "universal",
+        "selectedFormat": ".dmg",
+        "signingEnabled": true,
+        "formats": [
+          {
+            "format": ".dmg",
+            "name": "Đĩa Ảnh DMG",
+            "description": "Universal binary cho Apple Silicon và Intel",
+            "defaultSelected": true,
+            "architectures": [
+              "universal"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "web",
+        "displayName": "WebAssembly Trình Duyệt",
+        "iconName": "globe",
+        "enabled": true,
+        "selectedArch": "wasm",
+        "selectedFormat": ".wasm",
+        "signingEnabled": false,
+        "formats": [
+          {
+            "format": ".wasm",
+            "name": "Gói WebAssembly",
+            "description": "Chạy trực tiếp không cần cài đặt",
+            "defaultSelected": true,
+            "architectures": [
+              "wasm"
+            ]
+          }
+        ]
+      }
+    ],
+    "releases": [
+      {
+        "version": "v1.8.2",
+        "tag": "v1.8.2",
+        "releaseDate": "20 Tháng 10, 2026",
+        "channel": "stable",
+        "title": "Tăng Tốc Đồ Họa Skia & Xuất Bản WebAssembly",
+        "changelog": [
+          "Tăng tốc phần cứng Skia trên Metal (macOS) và DirectX 12 (Windows).",
+          "Mô-đun WebAssembly tối ưu 60 FPS trong môi trường trình duyệt an toàn."
+        ],
+        "published": true,
+        "artifacts": [
+          {
+            "id": "art-omnicanvas-v1.8.2-win-x64.exe-1792701753218",
+            "platform": "windows",
+            "format": ".exe",
+            "arch": "x86_64",
+            "filename": "omnicanvas-v1.8.2-win-x64.exe",
+            "sizeBytes": 65588,
+            "sha256": "de8e86869a9142070b1b068b7cd03ce74f457651aacd7bafb8312940104c779c",
+            "downloadUrl": "/api/v1/downloads/artifacts/omnicanvas-v1.8.2-win-x64.exe",
+            "createdAt": "2026-10-22T20:42:33.218Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.218Z",
+              "serialNumber": "SN-2026-DE8E86869A91"
+            }
+          },
+          {
+            "id": "art-omnicanvas-v1.8.2-mac-apple-silicon.dmg-1792701753218",
+            "platform": "macos",
+            "format": ".dmg",
+            "arch": "arm64",
+            "filename": "omnicanvas-v1.8.2-mac-apple-silicon.dmg",
+            "sizeBytes": 65573,
+            "sha256": "dfd30e7fb94c453dae1e700deaf04814ed2d6b9aad0b97e19d47c8e9cba23370",
+            "downloadUrl": "/api/v1/downloads/artifacts/omnicanvas-v1.8.2-mac-apple-silicon.dmg",
+            "createdAt": "2026-10-22T20:42:33.218Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.218Z",
+              "serialNumber": "SN-2026-DFD30E7FB94C"
+            }
+          },
+          {
+            "id": "art-omnicanvas-v1.8.2-linux-x86_64.AppImage-1792701753218",
+            "platform": "linux",
+            "format": ".AppImage",
+            "arch": "x86_64",
+            "filename": "omnicanvas-v1.8.2-linux-x86_64.AppImage",
+            "sizeBytes": 65588,
+            "sha256": "03856b0423131a6e4e828dbb378927a3f3f5f297484dabf261c46acd00c49a98",
+            "downloadUrl": "/api/v1/downloads/artifacts/omnicanvas-v1.8.2-linux-x86_64.AppImage",
+            "createdAt": "2026-10-22T20:42:33.218Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.218Z",
+              "serialNumber": "SN-2026-03856B042313"
+            }
+          },
+          {
+            "id": "art-omnicanvas-v1.8.2-android.apk-1792701753219",
+            "platform": "android",
+            "format": ".apk",
+            "arch": "arm64",
+            "filename": "omnicanvas-v1.8.2-android.apk",
+            "sizeBytes": 65581,
+            "sha256": "4f6171249182fbd68f2ce9076acb07f63bab9089d7dc2d03e16b5c878ad9a897",
+            "downloadUrl": "/api/v1/downloads/artifacts/omnicanvas-v1.8.2-android.apk",
+            "createdAt": "2026-10-22T20:42:33.219Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.219Z",
+              "serialNumber": "SN-2026-4F6171249182"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "proj-vaultkey",
+    "name": "VaultKey Enterprise",
+    "slug": "vaultkey",
+    "tagline": "Két Sắt Bảo Mật Khóa Xác Thực Passkey & Bí Mật Doanh Nghiệp (Không Lưu Mật Khẩu Thô)",
+    "description": "Hệ thống quản lý passkey sinh trắc học phần cứng FIDO2, mã hóa đầu cuối AES-256-GCM bảo vệ an toàn danh tính kỹ thuật số cho mọi hệ điều hành.",
+    "category": "An Toàn Thông Tin & Bảo Mật",
+    "framework": "Go / Wails",
+    "currentVersion": "v3.1.0",
+    "bundleIdentifier": "vn.forgeos.vaultkey",
+    "publisher": "Forge Security Labs VN",
+    "websiteUrl": "https://vaultkey.forgeos.vn",
+    "githubRepo": "https://github.com/forgeos-enterprise/vaultkey",
+    "securityLevel": "Military Grade",
+    "storeMeta": {
+      "rating": 5,
+      "reviewCount": 4120,
+      "downloadsCount": "200K+",
+      "badge": "VerifiedPro",
+      "badgeLabel": "Xác Thực Bảo Mật Quân Đội",
+      "ageRating": "Doanh nghiệp & Cá nhân",
+      "categoryLabel": "Bảo Mật & Quản Lý Danh Tính",
+      "screenshots": [
+        {
+          "id": "ss-vault-1",
+          "caption": "Khóa sinh trắc học Windows Hello và Apple Touch ID Secure Enclave",
+          "mode": "desktop"
+        },
+        {
+          "id": "ss-vault-2",
+          "caption": "Đồng bộ hóa khóa FIDO2 không chạm mã hóa AES-256-GCM",
+          "mode": "mobile"
+        }
+      ],
+      "dataSafety": {
+        "collectedData": "Không thể truy cập dữ liệu: Kiến trúc không hiểu biết (Zero-Knowledge)",
+        "securityPractice": "Toàn bộ bí mật được phân mảnh và niêm phong phần cứng",
+        "encryptionStandard": "AES-256-GCM + Argon2id Key Derivation"
+      },
+      "systemRequirements": {
+        "minOs": "Windows 10 20H2+, macOS Big Sur 11+, Linux Kernel 5.4+",
+        "recommendedRam": "2 GB RAM",
+        "diskSpace": "50 MB dung lượng trống",
+        "gpuReq": "Không yêu cầu GPU chuyên dụng"
+      },
+      "reviews": [
+        {
+          "id": "rev-v-1",
+          "author": "Vũ Đức Mạnh (Giám đốc Công nghệ Techcom Securities)",
+          "rating": 5,
+          "date": "19 Tháng 10, 2026",
+          "comment": "Hệ thống Passkey hoạt động chuẩn FIDO2 quốc tế. Triển khai cho toàn bộ nhân sự công ty rất mượt, loại bỏ hoàn toàn nguy cơ lừa đảo Phishing.",
+          "platform": "Windows 11 Hello TPM",
+          "verifiedInstall": true
+        }
+      ]
+    },
+    "files": [
+      {
+        "id": "file-main-go",
+        "name": "main.go",
+        "path": "/main.go",
+        "language": "go",
+        "isEntry": true,
+        "encrypted": true,
+        "securityHash": "sha256-991201948fc0",
+        "content": "package main\n\nimport (\n\t\"embed\"\n\t\"github.com/wailsapp/wails/v2\"\n\t\"github.com/wailsapp/wails/v2/pkg/options\"\n)\n\n//go:embed all:frontend/dist\nvar assets embed.FS\n\nfunc main() {\n\tapp := NewApp()\n\n\terr := wails.Run(&options.App{\n\t\tTitle:  \"VaultKey Enterprise - Bao Mat Tuyet Doi\",\n\t\tWidth:  1024,\n\t\tHeight: 700,\n\t\tAssets: assets,\n\t\tOnStartup: app.startup,\n\t\tBind: []interface{}{\n\t\t\tapp,\n\t\t},\n\t})\n\n\tif err != nil {\n\t\tprintln(\"Loi:\", err.Error())\n\t}\n}\n"
+      }
+    ],
+    "platforms": [
+      {
+        "platform": "windows",
+        "displayName": "Windows (Tích Hợp Windows Hello TPM)",
+        "iconName": "windows",
+        "enabled": true,
+        "selectedArch": "x86_64",
+        "selectedFormat": ".exe",
+        "signingEnabled": true,
+        "formats": [
+          {
+            "format": ".exe",
+            "name": "Gói Cài Đặt NSIS",
+            "description": "Tích hợp mô-đun phần cứng TPM 2.0",
+            "defaultSelected": true,
+            "architectures": [
+              "x86_64"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "macos",
+        "displayName": "macOS (Tích Hợp Touch ID Secure Enclave)",
+        "iconName": "apple",
+        "enabled": true,
+        "selectedArch": "universal",
+        "selectedFormat": ".dmg",
+        "signingEnabled": true,
+        "formats": [
+          {
+            "format": ".dmg",
+            "name": "Đĩa Ảnh DMG Universal",
+            "description": "Bảo vệ bằng Apple Secure Enclave",
+            "defaultSelected": true,
+            "architectures": [
+              "universal"
+            ]
+          }
+        ]
+      },
+      {
+        "platform": "linux",
+        "displayName": "Linux (Hỗ Trợ libsecret / KeepassXC)",
+        "iconName": "linux",
+        "enabled": true,
+        "selectedArch": "x86_64",
+        "selectedFormat": ".AppImage",
+        "signingEnabled": false,
+        "formats": [
+          {
+            "format": ".AppImage",
+            "name": "Gói AppImage",
+            "description": "Chạy độc lập an toàn trên Linux",
+            "defaultSelected": true,
+            "architectures": [
+              "x86_64"
+            ]
+          }
+        ]
+      }
+    ],
+    "releases": [
+      {
+        "version": "v3.1.0",
+        "tag": "v3.1.0",
+        "releaseDate": "18 Tháng 10, 2026",
+        "channel": "stable",
+        "title": "Đồng Bộ Hóa Khóa Xác Thực FIDO2 WebAuthn",
+        "changelog": [
+          "Hỗ trợ khóa bảo mật phần cứng FIDO2 (YubiKey, Titan Key).",
+          "Mã hóa két sắt tại máy khách bằng chuẩn AES-256-GCM với độ an toàn cao nhất."
+        ],
+        "published": true,
+        "artifacts": [
+          {
+            "id": "art-vaultkey-v3.1.0-win-x64.exe-1792701753219",
+            "platform": "windows",
+            "format": ".exe",
+            "arch": "x86_64",
+            "filename": "vaultkey-v3.1.0-win-x64.exe",
+            "sizeBytes": 65586,
+            "sha256": "a529db665109bc7587e53f633f5601296541ef4cd045e42a8a4f620eba4a4f43",
+            "downloadUrl": "/api/v1/downloads/artifacts/vaultkey-v3.1.0-win-x64.exe",
+            "createdAt": "2026-10-22T20:42:33.219Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.219Z",
+              "serialNumber": "SN-2026-A529DB665109"
+            }
+          },
+          {
+            "id": "art-vaultkey-v3.1.0-mac-universal.dmg-1792701753219",
+            "platform": "macos",
+            "format": ".dmg",
+            "arch": "universal",
+            "filename": "vaultkey-v3.1.0-mac-universal.dmg",
+            "sizeBytes": 65574,
+            "sha256": "d9a82cdbf0daf0b3885f5595a72ac7f7400e647bc4c6bdb3e9155b149537d9a8",
+            "downloadUrl": "/api/v1/downloads/artifacts/vaultkey-v3.1.0-mac-universal.dmg",
+            "createdAt": "2026-10-22T20:42:33.219Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.219Z",
+              "serialNumber": "SN-2026-D9A82CDBF0DA"
+            }
+          },
+          {
+            "id": "art-vaultkey-v3.1.0-linux-x86_64.AppImage-1792701753219",
+            "platform": "linux",
+            "format": ".AppImage",
+            "arch": "x86_64",
+            "filename": "vaultkey-v3.1.0-linux-x86_64.AppImage",
+            "sizeBytes": 65579,
+            "sha256": "93875250cd16dc5962c75dec222bf638685a75558a63af0e9c01cbdb3f5c7d76",
+            "downloadUrl": "/api/v1/downloads/artifacts/vaultkey-v3.1.0-linux-x86_64.AppImage",
+            "createdAt": "2026-10-22T20:42:33.219Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.219Z",
+              "serialNumber": "SN-2026-93875250CD16"
+            }
+          },
+          {
+            "id": "art-vaultkey-v3.1.0-android.apk-1792701753219",
+            "platform": "android",
+            "format": ".apk",
+            "arch": "arm64",
+            "filename": "vaultkey-v3.1.0-android.apk",
+            "sizeBytes": 65572,
+            "sha256": "0af59b0f30f4d2a45b85aea7cab3c7d4b14cf33615b3a7a61eeaf4fed1f700ef",
+            "downloadUrl": "/api/v1/downloads/artifacts/vaultkey-v3.1.0-android.apk",
+            "createdAt": "2026-10-22T20:42:33.219Z",
+            "verified": true,
+            "signatureInfo": {
+              "issuer": "DigiCert Trusted G4 ForgeOS EV Code Signing CA",
+              "certificateType": "EV Code Signing (FIPS 140-2 Level 3 HSM)",
+              "timestamp": "2026-10-22T20:42:33.219Z",
+              "serialNumber": "SN-2026-0AF59B0F30F4"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

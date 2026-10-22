@@ -3,12 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProjectTemplate, TargetPlatform, BuildArtifact } from '../../types/index.ts';
 import {
   formatBytes,
   getRecommendedInstallerCommand,
-  createExecutableInstallerScript,
   getPlatformVietnameseName
 } from '../../utils/packaging.ts';
 import { WebSandboxModal } from './WebSandboxModal.tsx';
@@ -20,6 +19,8 @@ interface DownloadPortalViewProps {
   onSelectProject: (p: ProjectTemplate) => void;
   detectedOS: TargetPlatform;
   onNotify: (msg: string) => void;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
 export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
@@ -27,7 +28,9 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
   projects,
   onSelectProject,
   detectedOS,
-  onNotify
+  onNotify,
+  activeTab = 'download-home',
+  onTabChange
 }) => {
   const [activePlatformFilter, setActivePlatformFilter] = useState<'all' | TargetPlatform>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -35,6 +38,14 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
   const [showChecksumModal, setShowChecksumModal] = useState<BuildArtifact | null>(null);
   const [selectedAppForDetail, setSelectedAppForDetail] = useState<ProjectTemplate | null>(null);
   const [selectedPlatformTab, setSelectedPlatformTab] = useState<TargetPlatform>(detectedOS);
+  const [manifestData, setManifestData] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/v1/public/manifest.json')
+      .then(res => res.json())
+      .then(data => setManifestData(data))
+      .catch(() => {});
+  }, []);
 
   const latestRelease = project.releases[0] || {
     version: project.currentVersion,
@@ -47,31 +58,9 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
   const matchingArtifacts = latestRelease.artifacts.filter(a => a.platform === selectedPlatformTab);
   const primaryDetectedArtifact = latestRelease.artifacts.find(a => a.platform === detectedOS) || latestRelease.artifacts[0];
 
-  const handleDownload = (targetProject: ProjectTemplate = project, artifact?: BuildArtifact) => {
-    const rel = targetProject.releases[0] || targetProject.releases[targetProject.releases.length - 1];
-    const target = artifact || rel?.artifacts.find(a => a.platform === detectedOS) || rel?.artifacts[0];
-    if (!target) {
-      onNotify('Gói cài đặt cho nền tảng này đang được chuẩn bị.');
-      return;
-    }
-
-    const scriptContent = createExecutableInstallerScript(
-      targetProject.name,
-      rel.version,
-      target.platform,
-      target.format
-    );
-    const blob = new Blob([scriptContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = target.platform === 'windows' ? `${target.filename}.bat` : `${target.filename}.sh`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    onNotify(`Đang tải xuống ${target.filename} (${formatBytes(target.sizeBytes)}) từ kho Cloudflare R2!`);
+  const getArtifactUrl = (art?: BuildArtifact) => {
+    if (!art) return `/api/v1/downloads/artifacts/${project.slug}-v${project.currentVersion}.exe`;
+    return art.downloadUrl || `/api/v1/downloads/artifacts/${art.filename}`;
   };
 
   const cliInstruction = getRecommendedInstallerCommand(selectedPlatformTab, project.slug, latestRelease.version);
@@ -101,7 +90,6 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
           isOpen={true}
           onClose={() => setSelectedAppForDetail(null)}
           detectedOS={detectedOS}
-          onDownload={(art) => handleDownload(selectedAppForDetail, art)}
           onOpenSandbox={() => {
             onSelectProject(selectedAppForDetail);
             setShowSandbox(true);
@@ -140,9 +128,15 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                 </div>
               )}
               <div>
-                <span className="text-slate-500 block mb-0.5">Mã Băm SHA-256:</span>
+                <span className="text-slate-500 block mb-0.5">Mã Băm SHA-256 (Tính từ Byte Thực Tế):</span>
                 <div className="bg-slate-950 p-2.5 rounded-lg font-mono text-[11px] text-emerald-400 break-all select-all border border-slate-800">
                   {showChecksumModal.sha256}
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-0.5">URL Tải Thực Tế:</span>
+                <div className="bg-slate-950 p-2.5 rounded-lg font-mono text-[11px] text-indigo-300 break-all select-all border border-slate-800">
+                  {getArtifactUrl(showChecksumModal)}
                 </div>
               </div>
               <div>
@@ -152,7 +146,14 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                 </div>
               </div>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-between items-center pt-2">
+              <a
+                href={getArtifactUrl(showChecksumModal)}
+                download={showChecksumModal.filename}
+                className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium"
+              >
+                Tải tệp này ngay ⬇
+              </a>
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(showChecksumModal.sha256);
@@ -181,7 +182,7 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                 Kho Ứng Dụng Đa Nền Tảng ForgeOS
               </span>
               <span className="text-xs text-slate-400 hidden md:inline">
-                · Máy Chủ Phân Phối Edge CDN Khách Hàng
+                · Máy Chủ Phân Phối Tệp Nhị Phân Trực Tiếp
               </span>
             </div>
 
@@ -249,19 +250,28 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                 </div>
               </div>
 
-              {/* Nút cài đặt & Hành động */}
+              {/* Nút cài đặt & Hành động: NÚT TẢI VỀ TRỎ TRỰC TIẾP ĐẾN URL THỰC TẾ */}
               <div className="flex flex-wrap items-center gap-3 pt-1">
-                <button
-                  onClick={() => handleDownload()}
-                  className="px-7 py-3.5 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-950/40 transition-all flex items-center gap-2"
-                >
-                  <span>Cài Đặt Cho {getPlatformVietnameseName(detectedOS).split(' ')[0].toUpperCase()}</span>
-                  {primaryDetectedArtifact && (
+                {primaryDetectedArtifact ? (
+                  <a
+                    href={getArtifactUrl(primaryDetectedArtifact)}
+                    download={primaryDetectedArtifact.filename}
+                    onClick={() => onNotify(`Đang tải xuống ${primaryDetectedArtifact.filename} từ máy chủ lưu trữ...`)}
+                    className="px-7 py-3.5 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-950/40 transition-all flex items-center gap-2"
+                  >
+                    <span>Cài Đặt Cho {getPlatformVietnameseName(detectedOS).split(' ')[0].toUpperCase()}</span>
                     <span className="font-mono text-xs opacity-80">
                       ({formatBytes(primaryDetectedArtifact.sizeBytes)})
                     </span>
-                  )}
-                </button>
+                  </a>
+                ) : (
+                  <button
+                    disabled
+                    className="px-7 py-3.5 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs sm:text-sm"
+                  >
+                    Đang chuẩn bị gói cài đặt
+                  </button>
+                )}
 
                 <button
                   onClick={() => setShowSandbox(true)}
@@ -279,11 +289,14 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                 </button>
               </div>
 
-              <div className="text-[11px] text-slate-400 flex items-center gap-2">
+              <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
                 <span>Thiết bị của bạn:</span>
                 <span className="text-white font-semibold">{getPlatformVietnameseName(detectedOS)}</span>
                 <span>·</span>
-                <span className="text-emerald-400">Đã ký số EV & không kèm mã theo dõi</span>
+                <span className="text-emerald-400">URL Tải Trực Tiếp:</span>
+                <code className="text-indigo-300 font-mono text-[10px]">
+                  {primaryDetectedArtifact ? getArtifactUrl(primaryDetectedArtifact) : '/api/v1/downloads/artifacts/...'}
+                </code>
               </div>
             </div>
 
@@ -364,8 +377,18 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
             ))}
           </div>
 
-          <div className="text-xs text-slate-400 hidden sm:block font-mono">
-            Hiển thị {filteredProjects.length} ứng dụng thương mại
+          <div className="flex items-center gap-3">
+            <a
+              href="/api/v1/public/manifest.json"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-indigo-400 hover:text-indigo-300 font-mono underline"
+            >
+              manifest.json ↗
+            </a>
+            <div className="text-xs text-slate-400 hidden sm:block font-mono">
+              Hiển thị {filteredProjects.length} ứng dụng thương mại
+            </div>
           </div>
         </div>
       </div>
@@ -393,6 +416,8 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
             {filteredProjects.map((p) => {
               const rel = p.releases[0] || p.releases[p.releases.length - 1];
               const art = rel?.artifacts.find(a => a.platform === detectedOS) || rel?.artifacts[0];
+              const directUrl = getArtifactUrl(art);
+
               return (
                 <div
                   key={p.id}
@@ -441,7 +466,7 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Hành động tải về & xem chi tiết */}
+                  {/* Hành động tải về trỏ thẳng đến URL thực tế */}
                   <div className="pt-5 mt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
                     <button
                       onClick={() => setSelectedAppForDetail(p)}
@@ -450,8 +475,10 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                       Chi tiết
                     </button>
 
-                    <button
-                      onClick={() => handleDownload(p, art)}
+                    <a
+                      href={directUrl}
+                      download={art ? art.filename : `${p.slug}.exe`}
+                      onClick={() => onNotify(`Bắt đầu tải ${art?.filename || p.name} từ URL thực tế...`)}
                       className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-sm"
                     >
                       <span>Tải Về</span>
@@ -460,11 +487,97 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                           ({formatBytes(art.sizeBytes)})
                         </span>
                       )}
-                    </button>
+                    </a>
                   </div>
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Khối Bảng Kê Khai Manifest Định Danh Toàn Diện (Manifest Table) */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <span>📋</span>
+                <span>Bảng Kê Khai Phát Hành Toàn Diện (Official Release Manifest)</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Tệp kê khai chính thức ghi nhận đầy đủ: Phiên bản (Version), Nền tảng (Platform), Dung lượng (Size), URL tải trực tiếp và Mã băm SHA-256 tính toán từ byte tệp thực tế.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href="/api/v1/public/manifest.json"
+                target="_blank"
+                rel="noreferrer"
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5"
+              >
+                <span>⬇</span>
+                <span>Tải Manifest JSON</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Bảng chi tiết Manifest các tệp phát hành */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 font-mono text-[11px]">
+                  <th className="py-2.5 px-3">Tên Tệp Nhị Phân</th>
+                  <th className="py-2.5 px-3">Phiên Bản</th>
+                  <th className="py-2.5 px-3">Nền Tảng</th>
+                  <th className="py-2.5 px-3">Dung Lượng</th>
+                  <th className="py-2.5 px-3">Mã Băm SHA-256 (Byte Checksum)</th>
+                  <th className="py-2.5 px-3 text-right">URL Tải Thực Tế</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                {manifestData && manifestData.apps ? (
+                  Object.values(manifestData.apps).flatMap((app: any) =>
+                    (app.artifacts || []).map((art: any) => (
+                      <tr key={art.id || art.filename} className="hover:bg-slate-900/60">
+                        <td className="py-2.5 px-3 font-bold text-white">
+                          {art.filename}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-300">
+                          v{art.version}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded bg-slate-950 text-indigo-300 border border-slate-800 uppercase">
+                            {art.platform}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-300">
+                          {formatBytes(art.sizeBytes)}
+                        </td>
+                        <td className="py-2.5 px-3 text-emerald-400 break-all select-all max-w-[220px]">
+                          {art.sha256}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <a
+                            href={art.url}
+                            download={art.filename}
+                            onClick={() => onNotify(`Đang tải ${art.filename}...`)}
+                            className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded text-[10px] inline-flex items-center gap-1"
+                          >
+                            <span>⬇ Tải Về</span>
+                          </a>
+                        </td>
+                      </tr>
+                    ))
+                  )
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-4 text-center text-slate-500">
+                      Đang đồng bộ dữ liệu Manifest từ máy chủ...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -525,7 +638,7 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
           {/* Danh sách tệp phân phối có sẵn trong kho */}
           <div className="space-y-3 pt-2">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Tệp Nhị Phân Khả Dụng Trong Kho R2 ({matchingArtifacts.length} gói)
+              Tệp Nhị Phân Khả Dụng Trong Kho ({matchingArtifacts.length} gói)
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {matchingArtifacts.map(art => (
@@ -546,12 +659,14 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
                     >
                       Mã SHA
                     </button>
-                    <button
-                      onClick={() => handleDownload(project, art)}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+                    <a
+                      href={getArtifactUrl(art)}
+                      download={art.filename}
+                      onClick={() => onNotify(`Đang tải tệp ${art.filename}...`)}
+                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
                     >
-                      Tải Gói
-                    </button>
+                      <span>⬇ Tải Tệp</span>
+                    </a>
                   </div>
                 </div>
               ))}
@@ -588,7 +703,7 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
             </div>
             <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
               <span className="text-slate-400 block text-[11px]">Mạng Phân Phối Tốc Độ Cao</span>
-              <span className="text-cyan-400 font-bold font-mono">Cloudflare R2 + 300+ PoPs</span>
+              <span className="text-cyan-400 font-bold font-mono">Kho Lưu Trữ Nhị Phân Chỉ Định</span>
             </div>
           </div>
         </div>

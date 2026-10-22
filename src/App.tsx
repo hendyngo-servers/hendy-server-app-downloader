@@ -13,6 +13,7 @@ import { StudioView } from './components/studio/StudioView.tsx';
 import { DownloadPortalView } from './components/portal/DownloadPortalView.tsx';
 import { GitHubSyncModal } from './components/deployment/GitHubSyncModal.tsx';
 import { DomainConfigPanel } from './components/deployment/DomainConfigPanel.tsx';
+import { AdminAuthGate } from './components/admin/AdminAuthGate.tsx';
 
 export default function App() {
   const [projects, setProjects] = useState<ProjectTemplate[]>(SAMPLE_PROJECTS);
@@ -20,9 +21,14 @@ export default function App() {
   const [deploymentConfig, setDeploymentConfig] = useState<CloudflareWorkersPagesConfig>(getDefaultDeploymentConfig());
 
   // Hai giao diện tách biệt hoàn toàn: 'studio' (Giao diện Quản trị & Phát triển) vs 'downloads' (Trang chủ Tải về của người dùng)
-  const [activeMode, setActiveMode] = useState<'studio' | 'downloads'>('studio');
-  const [activeStudioTab, setActiveStudioTab] = useState<string>('editor');
+  const [activeMode, setActiveMode] = useState<'studio' | 'downloads'>('downloads');
+  const [activeStudioTab, setActiveStudioTab] = useState<string>('upload-artifacts');
   const [activePortalTab, setActivePortalTab] = useState<string>('download-home');
+
+  // Xác thực quản trị viên máy chủ (Server-side Administrative Auth)
+  const [adminToken, setAdminToken] = useState<string | null>(() => localStorage.getItem('forge_admin_token'));
+  const [adminUser, setAdminUser] = useState<{ username: string; name: string } | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
 
   // Modals
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
@@ -34,20 +40,6 @@ export default function App() {
   // Hộp thoại thông báo Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Tự động nhận diện hệ điều hành máy khách
-    setDetectedOS(detectUserPlatform());
-
-    // Kiểm tra tham số định tuyến qua URL (?view=downloads hoặc ?view=studio)
-    const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get('view');
-    if (viewParam === 'downloads') {
-      setActiveMode('downloads');
-    } else if (viewParam === 'studio') {
-      setActiveMode('studio');
-    }
-  }, []);
-
   const notify = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -55,7 +47,112 @@ export default function App() {
     }, 4000);
   };
 
-  const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
+  // Tải danh sách ứng dụng từ máy chủ
+  const loadProjects = async (token?: string | null) => {
+    try {
+      const currentToken = token || adminToken;
+      if (currentToken) {
+        const res = await fetch('/api/v1/admin/projects', {
+          headers: { Authorization: `Bearer ${currentToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.projects) {
+            setProjects(data.projects);
+            return;
+          }
+        }
+      }
+
+      // Fallback sang API công khai
+      const res = await fetch('/api/v1/public/apps');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.apps) {
+          setProjects(data.apps);
+        }
+      }
+    } catch {
+      // Giữ nguyên dữ liệu mẫu nếu máy chủ bận
+    }
+  };
+
+  useEffect(() => {
+    // Tự động nhận diện hệ điều hành máy khách
+    setDetectedOS(detectUserPlatform());
+
+    // Kiểm tra tham số định tuyến qua URL (?view=downloads hoặc ?view=studio hoặc ?portal=admin)
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view') || params.get('portal');
+    if (viewParam === 'downloads') {
+      setActiveMode('downloads');
+    } else if (viewParam === 'studio' || viewParam === 'admin') {
+      setActiveMode('studio');
+    }
+
+    // Kiểm tra trạng thái xác thực quản trị viên máy chủ
+    const checkServerAuth = async () => {
+      const token = localStorage.getItem('forge_admin_token');
+      if (token) {
+        try {
+          const res = await fetch('/api/v1/auth/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.authenticated) {
+              setAdminUser(data.user);
+              setAdminToken(token);
+              loadProjects(token);
+            } else {
+              localStorage.removeItem('forge_admin_token');
+              setAdminToken(null);
+              setAdminUser(null);
+            }
+          } else {
+            localStorage.removeItem('forge_admin_token');
+            setAdminToken(null);
+            setAdminUser(null);
+          }
+        } catch {
+          // Bỏ qua lỗi mạng
+        }
+      } else {
+        loadProjects(null);
+      }
+      setIsCheckingAuth(false);
+    };
+
+    checkServerAuth();
+  }, []);
+
+  const handleAdminLoginSuccess = (token: string, user: { username: string; name: string }) => {
+    setAdminToken(token);
+    setAdminUser(user);
+    loadProjects(token);
+    notify(`Chào mừng ${user.name}! Đã cấp quyền quản trị máy chủ.`);
+  };
+
+  const handleAdminLogout = async () => {
+    if (adminToken) {
+      try {
+        await fetch('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${adminToken}` }
+        });
+      } catch {
+        // Bỏ qua
+      }
+    }
+    localStorage.removeItem('forge_admin_token');
+    setAdminToken(null);
+    setAdminUser(null);
+    setActiveMode('downloads');
+    notify('Đã đăng xuất phiên làm việc quản trị viên an toàn.');
+    loadProjects(null);
+  };
+
+  const activeProject = projects.find(p => p.id === activeProjectId) || projects[0] || SAMPLE_PROJECTS[0];
 
   // Xử lý cập nhật mã nguồn tệp
   const handleUpdateFileContent = (fileId: string, content: string) => {
@@ -66,6 +163,17 @@ export default function App() {
         files: proj.files.map(f => f.id === fileId ? { ...f, content } : f)
       };
     }));
+
+    if (adminToken) {
+      fetch(`/api/v1/admin/projects/${activeProjectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`
+        },
+        body: JSON.stringify(activeProject)
+      }).catch(() => {});
+    }
   };
 
   const handleAddFile = (name: string, path: string) => {
@@ -163,25 +271,37 @@ export default function App() {
         detectedOS={detectedOS}
         onOpenDeployModal={() => setIsDeployModalOpen(true)}
         onOpenDomainSettings={() => setIsDomainSettingsOpen(true)}
+        adminUser={adminUser}
+        onLogout={handleAdminLogout}
       />
 
       {/* Khung nội dung chính: Tách biệt hoàn toàn giữa Quản trị và Trang chủ Tải về */}
       <main className="flex-1 flex overflow-hidden">
         {activeMode === 'studio' ? (
-          <StudioView
-            projects={projects}
-            activeProject={activeProject}
-            onSelectProject={(p) => setActiveProjectId(p.id)}
-            activeTab={activeStudioTab}
-            onTabChange={setActiveStudioTab}
-            onAddArtifact={handleAddArtifact}
-            onPublishRelease={handlePublishRelease}
-            onUpdateFileContent={handleUpdateFileContent}
-            onAddFile={handleAddFile}
-            onDeleteFile={handleDeleteFile}
-            config={deploymentConfig}
-            onNotify={notify}
-          />
+          // Kiểm tra xác thực máy chủ trước khi cho phép vào giao diện quản trị
+          !adminUser ? (
+            <AdminAuthGate
+              onSuccess={handleAdminLoginSuccess}
+              onCancel={() => setActiveMode('downloads')}
+            />
+          ) : (
+            <StudioView
+              projects={projects}
+              activeProject={activeProject}
+              onSelectProject={(p) => setActiveProjectId(p.id)}
+              activeTab={activeStudioTab}
+              onTabChange={setActiveStudioTab}
+              onAddArtifact={handleAddArtifact}
+              onPublishRelease={handlePublishRelease}
+              onUpdateFileContent={handleUpdateFileContent}
+              onAddFile={handleAddFile}
+              onDeleteFile={handleDeleteFile}
+              config={deploymentConfig}
+              adminToken={adminToken || ''}
+              onNotify={notify}
+              onRefreshData={() => loadProjects(adminToken)}
+            />
+          )
         ) : (
           <DownloadPortalView
             project={activeProject}
@@ -189,6 +309,8 @@ export default function App() {
             onSelectProject={(p) => setActiveProjectId(p.id)}
             detectedOS={detectedOS}
             onNotify={notify}
+            activeTab={activePortalTab}
+            onTabChange={setActivePortalTab}
           />
         )}
       </main>

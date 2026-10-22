@@ -16,6 +16,8 @@ interface HeaderProps {
   detectedOS: TargetPlatform;
   onOpenDeployModal: () => void;
   onOpenDomainSettings: () => void;
+  adminUser?: { username: string; name: string } | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,9 +28,12 @@ export const Header: React.FC<HeaderProps> = ({
   currentProjectName,
   detectedOS,
   onOpenDeployModal,
-  onOpenDomainSettings
+  onOpenDomainSettings,
+  adminUser,
+  onLogout
 }) => {
   const studioTabs = [
+    { id: 'upload-artifacts', label: 'Kho Nhị Phân & Manifest', icon: '📥' },
     { id: 'editor', label: 'Mã Nguồn Cốt Lõi', icon: '📝' },
     { id: 'pipeline', label: 'Luồng CI/CD', icon: '⚡' },
     { id: 'packaging', label: 'Đóng Gói Đa Nền Tảng', icon: '📦' },
@@ -44,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'download-home', label: 'Cửa Hàng Ứng Dụng', icon: '🛍️' },
     { id: 'all-platforms', label: 'Tất Cả Hệ Điều Hành', icon: '💻' },
     { id: 'web-sandbox', label: 'Chạy Thử WebAssembly', icon: '▶️' },
+    { id: 'manifest-viewer', label: 'Tệp Manifest SHA-256', icon: '📋' },
     { id: 'changelog', label: 'Ghi Chú Phát Hành', icon: '📜' }
   ];
 
@@ -52,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Thanh định tuyến tên miền và kiểm định an toàn phân vùng */}
       <div className="bg-slate-900/90 border-b border-slate-800 px-4 py-1.5 text-xs text-slate-400 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-slate-500 font-mono text-[11px]">Định Tuyến API:</span>
+          <span className="text-slate-500 font-mono text-[11px]">Định Tuyến Máy Chủ:</span>
           {activeMode === 'studio' ? (
             <span className="text-indigo-400 font-mono font-medium">quan-tri.forgeos.vn (Giao Diện Quản Trị & Phát Triển)</span>
           ) : (
@@ -65,6 +71,19 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {activeMode === 'studio' && adminUser && (
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-slate-300 font-medium">{adminUser.name}</span>
+              <button
+                onClick={onLogout}
+                className="text-rose-400 hover:text-rose-300 underline font-mono ml-1"
+              >
+                Đăng Xuất
+              </button>
+            </div>
+          )}
+
           <button
             onClick={onOpenDomainSettings}
             className="hover:text-slate-200 transition-colors text-[11px] underline underline-offset-2"
@@ -76,8 +95,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => {
                 onModeChange('studio');
-                if (['download-home', 'all-platforms', 'web-sandbox', 'changelog'].includes(activeTab)) {
-                  onTabChange('editor');
+                if (['download-home', 'all-platforms', 'web-sandbox', 'manifest-viewer', 'changelog'].includes(activeTab)) {
+                  onTabChange('upload-artifacts');
                 }
               }}
               className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
@@ -111,14 +130,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <a
             href="/"
-            onClick={(e) => { e.preventDefault(); onModeChange('studio'); }}
-            className="text-lg font-bold tracking-tight text-white whitespace-nowrap hover:text-indigo-300 transition-colors"
+            onClick={(e) => { e.preventDefault(); onModeChange('downloads'); }}
+            className="text-lg font-bold tracking-tight text-white whitespace-nowrap hover:text-emerald-300 transition-colors"
           >
             ForgeOS
           </a>
           <span className="text-slate-700">/</span>
           <span className="text-sm text-slate-300 font-medium whitespace-nowrap">
-            {activeMode === 'studio' ? currentProjectName : 'Kho Ứng Dụng Đa Nền Tảng'}
+            {activeMode === 'studio' ? `Quản Trị: ${currentProjectName}` : 'Kho Ứng Dụng Đa Nền Tảng'}
           </span>
         </div>
 
@@ -178,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="bg-slate-900/60 border-t border-slate-800/80 px-6 py-1.5 overflow-x-auto">
           <div className="max-w-7xl mx-auto flex items-center gap-2 text-xs">
             <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mr-2 shrink-0">
-              Bộ Công Cụ Quản Trị:
+              Công Cụ Quản Trị:
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
               {studioTabs.map(tab => (

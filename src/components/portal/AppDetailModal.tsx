@@ -12,7 +12,7 @@ interface AppDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   detectedOS: TargetPlatform;
-  onDownload: (artifact?: BuildArtifact) => void;
+  onDownload?: (artifact?: BuildArtifact) => void;
   onOpenSandbox: () => void;
   onNotify: (msg: string) => void;
 }
@@ -22,7 +22,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
   isOpen,
   onClose,
   detectedOS,
-  onDownload,
   onOpenSandbox,
   onNotify
 }) => {
@@ -118,17 +117,26 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Nút hành động chính (Cài đặt / Chạy thử WebAssembly) */}
+          {/* Nút hành động chính: TRỎ TRỰC TIẾP ĐẾN URL THỰC TẾ CỦA TỆP NHỊ PHÂN */}
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            <button
-              onClick={() => onDownload(detectedArtifact)}
-              className="w-full sm:flex-1 py-3 px-6 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-bold rounded-xl text-sm shadow-lg shadow-emerald-950/30 transition-all flex items-center justify-center gap-2"
-            >
-              <span>Cài Đặt / Tải Về Cho {getPlatformVietnameseName(detectedOS).split(' ')[0].toUpperCase()}</span>
-              {detectedArtifact && (
+            {detectedArtifact ? (
+              <a
+                href={detectedArtifact.downloadUrl || `/api/v1/downloads/artifacts/${detectedArtifact.filename}`}
+                download={detectedArtifact.filename}
+                onClick={() => onNotify(`Đang tải xuống ${detectedArtifact.filename} từ URL thực tế...`)}
+                className="w-full sm:flex-1 py-3 px-6 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-bold rounded-xl text-sm shadow-lg shadow-emerald-950/30 transition-all flex items-center justify-center gap-2"
+              >
+                <span>Cài Đặt / Tải Về Cho {getPlatformVietnameseName(detectedOS).split(' ')[0].toUpperCase()}</span>
                 <span className="font-mono text-xs opacity-80">({formatBytes(detectedArtifact.sizeBytes)})</span>
-              )}
-            </button>
+              </a>
+            ) : (
+              <button
+                disabled
+                className="w-full sm:flex-1 py-3 px-6 bg-slate-800 text-slate-400 font-bold rounded-xl text-sm"
+              >
+                Đang chuẩn bị gói cài đặt
+              </button>
+            )}
 
             <button
               onClick={onOpenSandbox}
@@ -215,9 +223,9 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
                 </ul>
               </div>
 
-              {/* Tùy chọn tải về cho các nền tảng khác */}
+              {/* Tùy chọn tải về cho các nền tảng khác trỏ thẳng đến URL thực tế */}
               <div className="pt-4 border-t border-slate-800/80 space-y-3">
-                <div className="font-semibold text-white">Tất Cả Gói Cài Đặt Theo Nền Tảng:</div>
+                <div className="font-semibold text-white">Tất Cả Gói Cài Đặt Theo Nền Tảng (URL Thực Tế):</div>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {[
                     { id: 'windows', name: 'Windows' },
@@ -252,12 +260,15 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
                           Kiến trúc: {art.arch} · {formatBytes(art.sizeBytes)} · Định dạng {art.format}
                         </div>
                       </div>
-                      <button
-                        onClick={() => onDownload(art)}
-                        className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs"
+                      <a
+                        href={art.downloadUrl || `/api/v1/downloads/artifacts/${art.filename}`}
+                        download={art.filename}
+                        onClick={() => onNotify(`Đang tải tệp ${art.filename}...`)}
+                        className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1"
                       >
-                        Tải Về
-                      </button>
+                        <span>⬇</span>
+                        <span>Tải Tệp Thực</span>
+                      </a>
                     </div>
                   ))}
                 </div>
@@ -303,7 +314,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
           {/* Nội dung Tab 3: Đánh giá & Nhận xét của người dùng */}
           {activeTab === 'reviews' && (
             <div className="space-y-4">
-              {/* Phân bổ điểm số */}
               <div className="flex items-center gap-6 p-4 bg-slate-950 rounded-2xl border border-slate-800">
                 <div className="text-center">
                   <div className="text-4xl font-extrabold text-white font-mono">{meta.rating}</div>
@@ -330,7 +340,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Danh sách nhận xét */}
               <div className="space-y-3">
                 {meta.reviews.map((rev) => (
                   <div key={rev.id} className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">

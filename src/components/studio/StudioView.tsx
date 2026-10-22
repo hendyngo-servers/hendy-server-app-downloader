@@ -14,6 +14,7 @@ import { SecurityScanner } from './SecurityScanner.tsx';
 import { PipelineRunner } from './PipelineRunner.tsx';
 import { AnalyticsDashboard } from './AnalyticsDashboard.tsx';
 import { DomainApiConsole } from './DomainApiConsole.tsx';
+import { ArtifactUploadPanel } from '../admin/ArtifactUploadPanel.tsx';
 import { ArchitectureDiagram } from '../deployment/ArchitectureDiagram.tsx';
 import { DirectoryStructureViewer } from '../deployment/DirectoryStructureViewer.tsx';
 
@@ -29,7 +30,9 @@ interface StudioViewProps {
   onAddFile: (name: string, path: string) => void;
   onDeleteFile: (fileId: string) => void;
   config: CloudflareWorkersPagesConfig;
+  adminToken: string;
   onNotify: (msg: string) => void;
+  onRefreshData: () => void;
 }
 
 export const StudioView: React.FC<StudioViewProps> = ({
@@ -44,14 +47,16 @@ export const StudioView: React.FC<StudioViewProps> = ({
   onAddFile,
   onDeleteFile,
   config,
-  onNotify
-}) => {
+  adminToken,
+  onNotify,
+  onRefreshData
+  const projectFiles = activeProject.files || [];
   const [activeFileId, setActiveFileId] = useState<string>(
-    activeProject.files[0]?.id || ''
+    projectFiles[0]?.id || ''
   );
   const [isCompiling, setIsCompiling] = useState<boolean>(false);
 
-  const activeFile = activeProject.files.find(f => f.id === activeFileId) || activeProject.files[0] || null;
+  const activeFile = projectFiles.find(f => f.id === activeFileId) || projectFiles[0] || null;
 
   const handleQuickRun = () => {
     setIsCompiling(true);
@@ -87,6 +92,18 @@ export const StudioView: React.FC<StudioViewProps> = ({
             isCompiling={isCompiling}
           />
         </div>
+      )}
+
+      {/* Tab Mới: Tải Lên Kho Nhị Phân & Manifest */}
+      {activeTab === 'upload-artifacts' && (
+        <ArtifactUploadPanel
+          projects={projects}
+          activeProject={activeProject}
+          onSelectProject={onSelectProject}
+          adminToken={adminToken}
+          onNotify={onNotify}
+          onRefreshData={onRefreshData}
+        />
       )}
 
       {/* Tab 2: Luồng CI/CD Tự Động Hóa */}
