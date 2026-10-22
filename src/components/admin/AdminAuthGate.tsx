@@ -11,8 +11,8 @@ interface AdminAuthGateProps {
 }
 
 export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({ onSuccess, onCancel }) => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('ForgeAdmin2026!Secure');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,11 +92,6 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({ onSuccess, onCance
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono transition-colors"
               placeholder="••••••••••••"
             />
-          </div>
-
-          <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-1 text-[11px] text-slate-400">
-            <div className="font-semibold text-slate-300">Thông tin quản trị mặc định:</div>
-            <div>Tài khoản: <code className="text-indigo-400">admin</code> · Mật khẩu: <code className="text-indigo-400">ForgeAdmin2026!Secure</code></div>
           </div>
 
           <div className="pt-2 flex items-center gap-3">

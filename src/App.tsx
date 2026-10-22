@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ProjectTemplate, TargetPlatform, BuildArtifact, ReleaseVersion, CloudflareWorkersPagesConfig } from './types/index.ts';
 import { SAMPLE_PROJECTS } from './utils/sampleProjects.ts';
 import { getDefaultDeploymentConfig } from './utils/workersPagesConfig.ts';
@@ -16,7 +16,7 @@ import { DomainConfigPanel } from './components/deployment/DomainConfigPanel.tsx
 import { AdminAuthGate } from './components/admin/AdminAuthGate.tsx';
 
 export default function App() {
-  const [projects, setProjects] = useState<ProjectTemplate[]>(SAMPLE_PROJECTS);
+  const [projects, setProjects] = useState<ProjectTemplate[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>(SAMPLE_PROJECTS[0].id);
   const [deploymentConfig, setDeploymentConfig] = useState<CloudflareWorkersPagesConfig>(getDefaultDeploymentConfig());
 
@@ -39,6 +39,7 @@ export default function App() {
 
   // Hộp thoại thông báo Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const fileSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const notify = (msg: string) => {
     setToastMessage(msg);
@@ -103,22 +104,24 @@ export default function App() {
             if (data.authenticated) {
               setAdminUser(data.user);
               setAdminToken(token);
-              loadProjects(token);
+              await loadProjects(token);
             } else {
               localStorage.removeItem('forge_admin_token');
               setAdminToken(null);
               setAdminUser(null);
+              await loadProjects(null);
             }
           } else {
             localStorage.removeItem('forge_admin_token');
             setAdminToken(null);
             setAdminUser(null);
+            await loadProjects(null);
           }
         } catch {
-          // Bỏ qua lỗi mạng
+          await loadProjects(null);
         }
       } else {
-        loadProjects(null);
+        await loadProjects(null);
       }
       setIsCheckingAuth(false);
     };
@@ -154,92 +157,103 @@ export default function App() {
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0] || SAMPLE_PROJECTS[0];
 
-  // Xử lý cập nhật mã nguồn tệp
-  const handleUpdateFileContent = (fileId: string, content: string) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        files: proj.files.map(f => f.id === fileId ? { ...f, content } : f)
-      };
-    }));
-
-    if (adminToken) {
-      fetch(`/api/v1/admin/projects/${activeProjectId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${adminToken}`
-        },
-        body: JSON.stringify(activeProject)
-      }).catch(() => {});
-    }
+  // Persist all Studio edits through the protected API, rather than changing React state only.
+  const persistProject = (updatedProject: ProjectTemplate) => {
+    setProjects(prev => prev.map(project => project.id === updatedProject.id ? updatedProject : project));
+    if (!adminToken) return;
+    fetch('/api/v1/admin/projects/' + encodeURIComponent(updatedProject.id), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + adminToken
+      },
+      body: JSON.stringify(updatedProject)
+    }).then(res => {
+      if (!res.ok) notify('Không thể lưu thay đổi lên máy chủ (' + res.status + '). Vui lòng đăng nhập lại hoặc thử lại.');
+    }).catch(() => notify('Mất kết nối khi lưu thay đổi. Kiểm tra máy chủ rồi thử lại.'));
   };
 
-  const handleAddFile = (name: string, path: string) => {
-    const newFile = {
-      id: `file-${Date.now()}`,
-      name,
-      path,
-      language: name.endsWith('.rs') ? 'rust' : name.endsWith('.cpp') ? 'cpp' : name.endsWith('.go') ? 'go' : name.endsWith('.json') ? 'json' : 'typescript',
-      content: `// Tệp mã nguồn mới: ${name}\n`,
-      encrypted: true,
-      securityHash: `sha256-${Date.now().toString(16)}`
-    };
-
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        files: [...proj.files, newFile]
-      };
+  const handleUpdateFileContent = (fileId: string, content: string) => {
+    const projectId = activeProjectId;
+    setProjects(prev => prev.map(project => project.id !== projectId ? project : {
+      ...project,
+      files: project.files.map(file => file.id === fileId ? { ...file, content } : file)
     }));
-    notify(`Đã tạo tệp mã nguồn mới: ${name}`);
+
+    if (!adminToken) return;
+    const timerKey = projectId + ':' + fileId;
+    const existing = fileSaveTimers.current[timerKey];
+    if (existing) clearTimeout(existing);
+
+    // Debounce edits and use a focused PATCH so rapid keystrokes cannot overwrite stale project state.
+    fileSaveTimers.current[timerKey] = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          '/api/v1/admin/projects/' + encodeURIComponent(projectId) + '/files/' + encodeURIComponent(fileId),
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + adminToken
+            },
+            body: JSON.stringify({ content })
+          }
+        );
+        if (!res.ok) notify('Không thể lưu nội dung tệp (' + res.status + '). Vui lòng thử lại.');
+      } catch {
+        notify('Mất kết nối khi lưu tệp. Kiểm tra máy chủ rồi thử lại.');
+      } finally {
+        delete fileSaveTimers.current[timerKey];
+      }
+    }, 600);
+  };
+
+  const handleAddFile = (name: string, filePath: string) => {
+    const newFile = {
+      id: 'file-' + Date.now(),
+      name,
+      path: filePath,
+      language: name.endsWith('.rs') ? 'rust' : name.endsWith('.cpp') ? 'cpp' : name.endsWith('.go') ? 'go' : name.endsWith('.json') ? 'json' : 'typescript',
+      content: '// Tệp mã nguồn mới: ' + name + '\n',
+      encrypted: false
+    };
+    persistProject({ ...activeProject, files: [...activeProject.files, newFile] });
+    notify('Đã tạo tệp mã nguồn mới: ' + name);
   };
 
   const handleDeleteFile = (fileId: string) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        files: proj.files.filter(f => f.id !== fileId)
-      };
-    }));
+    persistProject({
+      ...activeProject,
+      files: activeProject.files.filter(file => file.id !== fileId)
+    });
     notify('Đã xóa tệp mã nguồn khỏi cây dự án');
   };
 
-  // Đăng ký tệp nhị phân đã đóng gói
+  // Only artifacts uploaded and verified by the backend remain publishable after reload.
   const handleAddArtifact = (artifact: BuildArtifact) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      const latestRel = proj.releases[0];
-      if (!latestRel) return proj;
-
-      const updatedReleases = [
-        {
-          ...latestRel,
-          artifacts: [artifact, ...latestRel.artifacts.filter(a => a.id !== artifact.id)]
-        },
-        ...proj.releases.slice(1)
-      ];
-
-      return {
-        ...proj,
-        releases: updatedReleases
-      };
-    }));
+    const releases = [...activeProject.releases];
+    const latest = releases[0];
+    if (!latest) {
+      notify('Hãy tạo bản phát hành trước khi thêm artifact.');
+      return;
+    }
+    releases[0] = {
+      ...latest,
+      artifacts: [artifact, ...latest.artifacts.filter(item => item.id !== artifact.id)]
+    };
+    persistProject({ ...activeProject, releases });
   };
 
-  // Xuất bản bản phát hành mới
   const handlePublishRelease = (release: ReleaseVersion) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id !== activeProjectId) return proj;
-      return {
-        ...proj,
-        currentVersion: release.version,
-        releases: [release, ...proj.releases]
-      };
-    }));
+    const releases = [
+      release,
+      ...activeProject.releases.filter(existing => existing.version !== release.version)
+    ];
+    persistProject({
+      ...activeProject,
+      currentVersion: release.version,
+      releases
+    });
   };
 
   return (
@@ -303,15 +317,32 @@ export default function App() {
             />
           )
         ) : (
-          <DownloadPortalView
-            project={activeProject}
-            projects={projects}
-            onSelectProject={(p) => setActiveProjectId(p.id)}
-            detectedOS={detectedOS}
-            onNotify={notify}
-            activeTab={activePortalTab}
-            onTabChange={setActivePortalTab}
-          />
+          isCheckingAuth ? (
+            <div className="flex-1 flex items-center justify-center bg-slate-950 text-slate-400 text-sm">
+              Đang tải danh sách phần mềm đã xuất bản...
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center bg-slate-950 p-6">
+              <div className="max-w-xl text-center space-y-3">
+                <div className="text-3xl">📦</div>
+                <h2 className="text-lg font-bold text-white">Chưa có bản phát hành công khai</h2>
+                <p className="text-sm text-slate-400">
+                  Kho hiện chưa có artifact thật thuộc bản phát hành đã xuất bản, hoặc API chưa kết nối được.
+                  Quản trị viên có thể đăng nhập tại giao diện Studio để tải tệp phát hành lên.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <DownloadPortalView
+              project={activeProject}
+              projects={projects}
+              onSelectProject={(p) => setActiveProjectId(p.id)}
+              detectedOS={detectedOS}
+              onNotify={notify}
+              activeTab={activePortalTab}
+              onTabChange={setActivePortalTab}
+            />
+          )
         )}
       </main>
 

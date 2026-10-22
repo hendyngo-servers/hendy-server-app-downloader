@@ -1,0 +1,5 @@
+# Cloudflare Pages configuration (Pages Functions execute on the Workers runtime).
+# Configure BACKEND_ORIGIN as a runtime variable in the Pages dashboard.
+name = "hendy-server-app-downloader"
+compatibility_date = "2026-10-23"
+pages_build_output_dir = "./dist"
