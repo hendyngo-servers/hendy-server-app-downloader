@@ -13,7 +13,7 @@ The Express backend uses Node APIs and is not simply executed unchanged inside W
 
 ## 1. PostgreSQL and R2 setup
 
-1. Create a PostgreSQL database with TLS-enabled access. A Render PostgreSQL database or an external provider can be used; review the provider's retention and backup policy.
+1. Create a PostgreSQL database with TLS-enabled access. A Render PostgreSQL database or an external provider can be used; review the provider's retention and backup policy. Render Free Postgres expires after 30 days and has no backups; use it only for temporary tests, not as the only production database.
 2. Create a private R2 bucket, for example hendy-server-app-artifacts.
 3. Create R2 S3 API credentials scoped to the required bucket. Never commit keys or expose them in VITE_* frontend variables.
 4. If browser direct uploads are used, configure R2 CORS for the actual Pages origin and PUT method. The multipart endpoint is limited to 50 MiB by default. Direct upload URLs expire after 15 minutes and the backend re-reads the object to calculate SHA-256 before registering metadata. See `infra/r2-cors.example.json` and replace the placeholder origin with your exact Pages origin before applying the bucket CORS policy.
