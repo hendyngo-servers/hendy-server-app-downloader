@@ -1,0 +1,6 @@
+{
+  "name": "ForgeOS - Nền Tảng Quản Trị Phát Triển & Cổng Tải Phần Mềm Đa Nền Tảng",
+  "description": "Hệ thống quản trị bảo trì, phát triển mã nguồn và cổng tải phần mềm đa nền tảng tách biệt hoàn toàn, bảo mật thương mại và quản lý định tuyến tên miền qua API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
