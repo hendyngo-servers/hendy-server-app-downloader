@@ -720,6 +720,35 @@ app.get("/api/v1/admin/projects", requireAdminAuth, async (_req, res, next) => {
     res.json({ success: true, projects: hydrated });
   } catch (error) { next(error); }
 });
+app.patch("/api/v1/admin/projects/:id/files/:fileId", requireAdminAuth, async (req, res, next) => {
+  try {
+    const project = await getProjectById(String(req.params.id));
+    if (!project) {
+      res.status(404).json({ success: false, error: "Không tìm thấy dự án." });
+      return;
+    }
+    if (typeof req.body?.content !== "string" || req.body.content.length > 2 * 1024 * 1024) {
+      res.status(400).json({ success: false, error: "Nội dung tệp phải là chuỗi và tối đa 2 MiB." });
+      return;
+    }
+    const fileId = String(req.params.fileId);
+    let found = false;
+    const files = (project.files || []).map(file => {
+      if (file.id !== fileId) return file;
+      found = true;
+      return { ...file, content: req.body.content };
+    });
+    if (!found) {
+      res.status(404).json({ success: false, error: "Không tìm thấy tệp trong dự án." });
+      return;
+    }
+    await saveProject({ ...project, files });
+    const session = (req as Request & { adminSession?: StoredSession }).adminSession;
+    await audit(session?.username || "admin", "project.file.update", { projectId: project.id, fileId }, req);
+    res.json({ success: true, projectId: project.id, fileId });
+  } catch (error) { next(error); }
+});
+
 app.put("/api/v1/admin/projects/:id", requireAdminAuth, async (req, res, next) => {
   try {
     const projectId = String(req.params.id);
