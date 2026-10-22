@@ -70,10 +70,10 @@ jobs:
         uses: actions/checkout@v4
       - name: Deploy standalone API gateway Worker
         uses: cloudflare/wrangler-action@v4
-        with: PACKAGE_MANAGER_PLACEHOLDER
         with:
-          apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: npm
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config=wrangler.worker.toml
 
   # Render auto-deploys the Node backend from this repository when main changes.
