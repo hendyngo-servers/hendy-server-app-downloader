@@ -16,11 +16,10 @@ const childEnv = {
   R2_SECRET_ACCESS_KEY: "",
   R2_BUCKET_NAME: ""
 };
-const command = process.platform === "win32" ? "npm.cmd" : "npm";
-const child = spawn(command, ["run", "dev"], {
+// Spawn the TypeScript runtime directly so terminating the test also terminates the API process.
+const child = spawn(process.execPath, ["node_modules/tsx/dist/cli.mjs", "server.ts"], {
   env: childEnv,
-  stdio: ["ignore", "pipe", "pipe"],
-  shell: process.platform === "win32"
+  stdio: ["ignore", "pipe", "pipe"]
 });
 
 let logs = "";
