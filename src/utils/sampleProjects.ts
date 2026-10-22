@@ -20,6 +20,60 @@ export const SAMPLE_PROJECTS: ProjectTemplate[] = [
     websiteUrl: 'https://hyperterminal.forgeos.vn',
     githubRepo: 'https://github.com/forgeos-enterprise/hyperterminal-core',
     securityLevel: 'Enterprise High',
+    storeMeta: {
+      rating: 4.9,
+      reviewCount: 3840,
+      downloadsCount: '150K+',
+      badge: 'EditorChoice',
+      badgeLabel: 'Lựa Chọn Của Biên Tập Viên',
+      ageRating: 'Phù hợp mọi lứa tuổi',
+      categoryLabel: 'Công Cụ Năng Suất & Kỹ Thuật',
+      screenshots: [
+        { id: 'ss-1', caption: 'Bảng giám sát GPU, CPU và luồng mạng thời gian thực với độ trễ < 1ms', mode: 'desktop' },
+        { id: 'ss-2', caption: 'Trình quản lý PTY phiên bản đa luồng hỗ trợ phân chia cửa sổ không giới hạn', mode: 'desktop' },
+        { id: 'ss-3', caption: 'Khởi chạy trực tiếp qua WebAssembly không cần quyền quản trị viên', mode: 'canvas' }
+      ],
+      dataSafety: {
+        collectedData: 'Không thu thập bất kỳ dữ liệu cá nhân hay lịch sử dòng lệnh nào',
+        securityPractice: 'Mã hóa hoàn toàn tại máy khách, không gửi dữ liệu ra máy chủ bên ngoài',
+        encryptionStandard: 'AES-256-GCM Hardware TPM Enclave'
+      },
+      systemRequirements: {
+        minOs: 'Windows 10+, macOS 11.0+, Ubuntu 20.04+, Chrome 90+',
+        recommendedRam: '4 GB RAM (Tối thiểu 1 GB RAM)',
+        diskSpace: '85 MB dung lượng trống',
+        gpuReq: 'Hỗ trợ phần cứng DirectX 11, Metal 2 hoặc Vulkan'
+      },
+      reviews: [
+        {
+          id: 'rev-1',
+          author: 'Nguyễn Minh Tuấn (Kỹ sư DevOps tại FPT Software)',
+          rating: 5,
+          date: '20 Tháng 10, 2026',
+          comment: 'Ứng dụng mở cực kỳ nhanh trên Apple Silicon M3, chiếm chưa tới 25MB RAM. Tính năng phân chia cửa sổ PTY giúp mình quản lý cụm Kubernetes rất tiện lợi.',
+          platform: 'macOS Universal',
+          verifiedInstall: true
+        },
+        {
+          id: 'rev-2',
+          author: 'Trần Văn Hoàng (Quản trị viên Hệ thống Viettel IDC)',
+          rating: 5,
+          date: '18 Tháng 10, 2026',
+          comment: 'Chứng chỉ EV Code Signing chuẩn chỉ, cài trên Windows 11 Enterprise không hề bị SmartScreen chặn. Rất khuyến nghị cho các nhóm kỹ thuật.',
+          platform: 'Windows 11 x86_64',
+          verifiedInstall: true
+        },
+        {
+          id: 'rev-3',
+          author: 'Lê Thu Trang (Chuyên viên An toàn thông tin)',
+          rating: 5,
+          date: '15 Tháng 10, 2026',
+          comment: 'Thích nhất là có thể chạy thử trực tiếp WebAssembly trên trình duyệt trước khi tải tệp nhị phân về máy. Đánh giá 5 sao!',
+          platform: 'Web / Linux AppImage',
+          verifiedInstall: true
+        }
+      ]
+    },
     files: [
       {
         id: 'file-tauri-conf',
@@ -325,6 +379,41 @@ export default function HyperTerminalUI() {
     websiteUrl: 'https://omnicanvas.forgeos.vn',
     githubRepo: 'https://github.com/forgeos-enterprise/omnicanvas',
     securityLevel: 'Commercial Standard',
+    storeMeta: {
+      rating: 4.8,
+      reviewCount: 2150,
+      downloadsCount: '80K+',
+      badge: 'Trending',
+      badgeLabel: 'Xu Hướng Sáng Tạo',
+      ageRating: 'Phù hợp mọi lứa tuổi',
+      categoryLabel: 'Thiết Kế Đồ Họa & Minh Họa',
+      screenshots: [
+        { id: 'ss-omni-1', caption: 'Chỉnh sửa đường cong Bezier đa điểm với công nghệ rasterization Skia GPU', mode: 'canvas' },
+        { id: 'ss-omni-2', caption: 'Xuất tệp SVG chuẩn công nghiệp và nhúng WebAssembly thời gian thực', mode: 'desktop' }
+      ],
+      dataSafety: {
+        collectedData: 'Không thu thập bất kỳ hình ảnh hay bản vẽ thiết kế nào của người dùng',
+        securityPractice: 'Lưu trữ cục bộ trực tiếp trên ổ cứng thiết bị',
+        encryptionStandard: 'Chuẩn lưu trữ an toàn OS Sandbox'
+      },
+      systemRequirements: {
+        minOs: 'Windows 10, macOS Monterey 12.0+, Linux x86_64',
+        recommendedRam: '8 GB RAM (Tối thiểu 2 GB RAM)',
+        diskSpace: '140 MB dung lượng trống',
+        gpuReq: 'Bộ xử lý đồ họa tích hợp hoặc rời hỗ trợ WebGL 2.0 / Metal'
+      },
+      reviews: [
+        {
+          id: 'rev-omni-1',
+          author: 'Đặng Thanh Tâm (Trưởng nhóm UI/UX tại VNG Corporation)',
+          rating: 5,
+          date: '21 Tháng 10, 2026',
+          comment: 'Công cụ vẽ vector cực nhẹ và mượt. Đường cong Bezier chuẩn xác từng pixel, xuất tệp SVG sạch không bị rác code.',
+          platform: 'macOS Universal',
+          verifiedInstall: true
+        }
+      ]
+    },
     files: [
       {
         id: 'file-cmakelists',
@@ -462,6 +551,41 @@ int main() {
     websiteUrl: 'https://vaultkey.forgeos.vn',
     githubRepo: 'https://github.com/forgeos-enterprise/vaultkey',
     securityLevel: 'Military Grade',
+    storeMeta: {
+      rating: 5.0,
+      reviewCount: 4120,
+      downloadsCount: '200K+',
+      badge: 'VerifiedPro',
+      badgeLabel: 'Xác Thực Bảo Mật Quân Đội',
+      ageRating: 'Doanh nghiệp & Cá nhân',
+      categoryLabel: 'Bảo Mật & Quản Lý Danh Tính',
+      screenshots: [
+        { id: 'ss-vault-1', caption: 'Khóa sinh trắc học Windows Hello và Apple Touch ID Secure Enclave', mode: 'desktop' },
+        { id: 'ss-vault-2', caption: 'Đồng bộ hóa khóa FIDO2 không chạm mã hóa AES-256-GCM', mode: 'mobile' }
+      ],
+      dataSafety: {
+        collectedData: 'Không thể truy cập dữ liệu: Kiến trúc không hiểu biết (Zero-Knowledge)',
+        securityPractice: 'Toàn bộ bí mật được phân mảnh và niêm phong phần cứng',
+        encryptionStandard: 'AES-256-GCM + Argon2id Key Derivation'
+      },
+      systemRequirements: {
+        minOs: 'Windows 10 20H2+, macOS Big Sur 11+, Linux Kernel 5.4+',
+        recommendedRam: '2 GB RAM',
+        diskSpace: '50 MB dung lượng trống',
+        gpuReq: 'Không yêu cầu GPU chuyên dụng'
+      },
+      reviews: [
+        {
+          id: 'rev-v-1',
+          author: 'Vũ Đức Mạnh (Giám đốc Công nghệ Techcom Securities)',
+          rating: 5,
+          date: '19 Tháng 10, 2026',
+          comment: 'Hệ thống Passkey hoạt động chuẩn FIDO2 quốc tế. Triển khai cho toàn bộ nhân sự công ty rất mượt, loại bỏ hoàn toàn nguy cơ lừa đảo Phishing.',
+          platform: 'Windows 11 Hello TPM',
+          verifiedInstall: true
+        }
+      ]
+    },
     files: [
       {
         id: 'file-main-go',

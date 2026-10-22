@@ -28,8 +28,27 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDeployModal,
   onOpenDomainSettings
 }) => {
+  const studioTabs = [
+    { id: 'editor', label: 'Mã Nguồn Cốt Lõi', icon: '📝' },
+    { id: 'pipeline', label: 'Luồng CI/CD', icon: '⚡' },
+    { id: 'packaging', label: 'Đóng Gói Đa Nền Tảng', icon: '📦' },
+    { id: 'releases', label: 'Quản Lý Phát Hành', icon: '🚀' },
+    { id: 'deployment', label: 'Workers & Pages', icon: '☁️' },
+    { id: 'scanner', label: 'Quét Lỗ Hổng SAST', icon: '🔍' },
+    { id: 'security', label: 'Két An Toàn & Ký Số', icon: '🛡️' },
+    { id: 'analytics', label: 'Phân Tích Phân Phối', icon: '📊' },
+    { id: 'domain-api', label: 'Cổng API Tên Miền', icon: '🌐' }
+  ];
+
+  const storeTabs = [
+    { id: 'download-home', label: 'Cửa Hàng Ứng Dụng', icon: '🛍️' },
+    { id: 'all-platforms', label: 'Tất Cả Hệ Điều Hành', icon: '💻' },
+    { id: 'web-sandbox', label: 'Chạy Thử WebAssembly', icon: '▶️' },
+    { id: 'changelog', label: 'Ghi Chú Phát Hành', icon: '📜' }
+  ];
+
   return (
-    <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur-md sticky top-0 z-40">
+    <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur-md sticky top-0 z-40">
       {/* Thanh định tuyến tên miền và kiểm định an toàn phân vùng */}
       <div className="bg-slate-900/90 border-b border-slate-800 px-4 py-1.5 text-xs text-slate-400 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -39,8 +58,10 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <span className="text-emerald-400 font-mono font-medium">tai-ve.forgeos.vn (Trang Chủ Phân Phối Người Dùng)</span>
           )}
-          <span className="text-slate-600">·</span>
-          <span className="text-slate-400">Cách Ly Mã Nguồn: <strong className="text-emerald-400 font-normal">An Toàn Tuyệt Đối (Air-Gapped)</strong></span>
+          <span className="text-slate-600 hidden sm:inline">·</span>
+          <span className="text-slate-400 hidden sm:inline">
+            Cách Ly Mã Nguồn: <strong className="text-emerald-400 font-normal">An Toàn Tuyệt Đối (Air-Gapped)</strong>
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -53,7 +74,12 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-slate-700">|</span>
           <div className="flex items-center bg-slate-950 rounded p-0.5 border border-slate-800">
             <button
-              onClick={() => onModeChange('studio')}
+              onClick={() => {
+                onModeChange('studio');
+                if (['download-home', 'all-platforms', 'web-sandbox', 'changelog'].includes(activeTab)) {
+                  onTabChange('editor');
+                }
+              }}
               className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
                 activeMode === 'studio'
                   ? 'bg-indigo-600 text-white shadow-sm'
@@ -63,7 +89,10 @@ export const Header: React.FC<HeaderProps> = ({
               Giao Diện Quản Trị
             </button>
             <button
-              onClick={() => onModeChange('downloads')}
+              onClick={() => {
+                onModeChange('downloads');
+                onTabChange('download-home');
+              }}
               className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
                 activeMode === 'downloads'
                   ? 'bg-emerald-600 text-white shadow-sm'
@@ -77,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Top Bar Contract chuẩn thương mại: 3 vùng cách nhau bởi gap-8 */}
-      <div className="flex items-center justify-between gap-8 px-6 py-3.5 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between gap-8 px-6 py-3 max-w-7xl mx-auto">
         {/* Vùng 1: Nhãn hiệu chữ đơn dòng */}
         <div className="flex items-center gap-3 shrink-0">
           <a
@@ -93,86 +122,34 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Vùng 2: Các liên kết điều hướng chuyên môn */}
-        <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-400">
+        {/* Vùng 2: Các liên kết điều hướng chính */}
+        <nav className="hidden md:flex items-center gap-5 text-xs font-medium text-slate-400 overflow-x-auto py-1">
           {activeMode === 'studio' ? (
-            <>
+            studioTabs.slice(0, 5).map(tab => (
               <button
-                onClick={() => onTabChange('editor')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'editor' ? 'text-white border-b-2 border-indigo-500 pb-0.5 font-semibold' : ''
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                className={`whitespace-nowrap transition-colors hover:text-white flex items-center gap-1.5 ${
+                  activeTab === tab.id ? 'text-white border-b-2 border-indigo-500 pb-0.5 font-semibold' : ''
                 }`}
               >
-                Mã Nguồn Cốt Lõi
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
               </button>
-              <button
-                onClick={() => onTabChange('packaging')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'packaging' ? 'text-white border-b-2 border-indigo-500 pb-0.5 font-semibold' : ''
-                }`}
-              >
-                Đóng Gói Đa Nền Tảng
-              </button>
-              <button
-                onClick={() => onTabChange('releases')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'releases' ? 'text-white border-b-2 border-indigo-500 pb-0.5 font-semibold' : ''
-                }`}
-              >
-                Quản Lý Phát Hành
-              </button>
-              <button
-                onClick={() => onTabChange('deployment')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'deployment' ? 'text-white border-b-2 border-indigo-500 pb-0.5 font-semibold' : ''
-                }`}
-              >
-                Workers & Pages
-              </button>
-              <button
-                onClick={() => onTabChange('security')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'security' ? 'text-white border-b-2 border-indigo-500 pb-0.5 font-semibold' : ''
-                }`}
-              >
-                Bảo Mật & Ký Số
-              </button>
-            </>
+            ))
           ) : (
-            <>
+            storeTabs.map(tab => (
               <button
-                onClick={() => onTabChange('download-home')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'download-home' ? 'text-white border-b-2 border-emerald-500 pb-0.5 font-semibold' : ''
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                className={`whitespace-nowrap transition-colors hover:text-white flex items-center gap-1.5 ${
+                  activeTab === tab.id ? 'text-white border-b-2 border-emerald-500 pb-0.5 font-semibold' : ''
                 }`}
               >
-                Tổng Quan Phần Mềm
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
               </button>
-              <button
-                onClick={() => onTabChange('all-platforms')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'all-platforms' ? 'text-white border-b-2 border-emerald-500 pb-0.5 font-semibold' : ''
-                }`}
-              >
-                Tất Cả Hệ Điều Hành
-              </button>
-              <button
-                onClick={() => onTabChange('web-sandbox')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'web-sandbox' ? 'text-white border-b-2 border-emerald-500 pb-0.5 font-semibold' : ''
-                }`}
-              >
-                Chạy Thử WebAssembly
-              </button>
-              <button
-                onClick={() => onTabChange('changelog')}
-                className={`whitespace-nowrap transition-colors hover:text-white ${
-                  activeTab === 'changelog' ? 'text-white border-b-2 border-emerald-500 pb-0.5 font-semibold' : ''
-                }`}
-              >
-                Ghi Chú Phát Hành
-              </button>
-            </>
+            ))
           )}
         </nav>
 
@@ -195,6 +172,33 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
       </div>
+
+      {/* Thanh công cụ phụ mở rộng cho Giao Diện Quản Trị (Sub-bar) */}
+      {activeMode === 'studio' && (
+        <div className="bg-slate-900/60 border-t border-slate-800/80 px-6 py-1.5 overflow-x-auto">
+          <div className="max-w-7xl mx-auto flex items-center gap-2 text-xs">
+            <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mr-2 shrink-0">
+              Bộ Công Cụ Quản Trị:
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {studioTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => onTabChange(tab.id)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                    activeTab === tab.id
+                      ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                >
+                  <span className="text-[12px]">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

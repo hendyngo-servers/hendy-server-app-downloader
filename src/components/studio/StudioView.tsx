@@ -10,6 +10,10 @@ import { CodeEditor } from './CodeEditor.tsx';
 import { PackagingPipeline } from './PackagingPipeline.tsx';
 import { ReleaseManager } from './ReleaseManager.tsx';
 import { SecurityVaultPanel } from './SecurityVaultPanel.tsx';
+import { SecurityScanner } from './SecurityScanner.tsx';
+import { PipelineRunner } from './PipelineRunner.tsx';
+import { AnalyticsDashboard } from './AnalyticsDashboard.tsx';
+import { DomainApiConsole } from './DomainApiConsole.tsx';
 import { ArchitectureDiagram } from '../deployment/ArchitectureDiagram.tsx';
 import { DirectoryStructureViewer } from '../deployment/DirectoryStructureViewer.tsx';
 
@@ -85,7 +89,15 @@ export const StudioView: React.FC<StudioViewProps> = ({
         </div>
       )}
 
-      {/* Tab 2: Đóng gói đa nền tảng */}
+      {/* Tab 2: Luồng CI/CD Tự Động Hóa */}
+      {activeTab === 'pipeline' && (
+        <PipelineRunner
+          project={activeProject}
+          onNotify={onNotify}
+        />
+      )}
+
+      {/* Tab 3: Đóng gói đa nền tảng */}
       {activeTab === 'packaging' && (
         <PackagingPipeline
           project={activeProject}
@@ -94,7 +106,7 @@ export const StudioView: React.FC<StudioViewProps> = ({
         />
       )}
 
-      {/* Tab 3: Quản lý phiên bản phát hành */}
+      {/* Tab 4: Quản lý phiên bản phát hành */}
       {activeTab === 'releases' && (
         <ReleaseManager
           project={activeProject}
@@ -103,7 +115,7 @@ export const StudioView: React.FC<StudioViewProps> = ({
         />
       )}
 
-      {/* Tab 4: Triển khai Cloudflare Workers & Pages */}
+      {/* Tab 5: Triển khai Cloudflare Workers & Pages */}
       {activeTab === 'deployment' && (
         <div className="flex-1 bg-slate-950 p-6 overflow-y-auto">
           <div className="max-w-6xl mx-auto space-y-8">
@@ -125,10 +137,34 @@ export const StudioView: React.FC<StudioViewProps> = ({
         </div>
       )}
 
-      {/* Tab 5: Bảo mật mã nguồn cốt lõi & Kiểm định thương mại */}
+      {/* Tab 6: Quét Lỗ Hổng & An Toàn SAST */}
+      {activeTab === 'scanner' && (
+        <SecurityScanner
+          project={activeProject}
+          onNotify={onNotify}
+        />
+      )}
+
+      {/* Tab 7: Bảo mật mã nguồn cốt lõi & Kiểm định thương mại */}
       {activeTab === 'security' && (
         <SecurityVaultPanel
           project={activeProject}
+          config={config}
+          onNotify={onNotify}
+        />
+      )}
+
+      {/* Tab 8: Phân tích & Giám sát phân phối */}
+      {activeTab === 'analytics' && (
+        <AnalyticsDashboard
+          project={activeProject}
+          onNotify={onNotify}
+        />
+      )}
+
+      {/* Tab 9: Cổng API Định Tuyến Tên Miền */}
+      {activeTab === 'domain-api' && (
+        <DomainApiConsole
           config={config}
           onNotify={onNotify}
         />

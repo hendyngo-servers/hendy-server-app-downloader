@@ -76,6 +76,43 @@ export interface ReleaseVersion {
   published: boolean;
 }
 
+export interface AppStoreReview {
+  id: string;
+  author: string;
+  rating: number; // 1-5
+  date: string;
+  comment: string;
+  platform: string;
+  verifiedInstall: boolean;
+}
+
+export interface AppStoreMetadata {
+  rating: number; // 4.9
+  reviewCount: number; // 1420
+  downloadsCount: string; // "100K+"
+  badge: 'EditorChoice' | 'TopFree' | 'VerifiedPro' | 'Trending';
+  badgeLabel: string;
+  ageRating: string; // "3+"
+  categoryLabel: string;
+  screenshots: {
+    id: string;
+    caption: string;
+    mode: 'desktop' | 'mobile' | 'canvas';
+  }[];
+  dataSafety: {
+    collectedData: string;
+    securityPractice: string;
+    encryptionStandard: string;
+  };
+  systemRequirements: {
+    minOs: string;
+    recommendedRam: string;
+    diskSpace: string;
+    gpuReq: string;
+  };
+  reviews: AppStoreReview[];
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
@@ -93,6 +130,7 @@ export interface ProjectTemplate {
   platforms: PlatformConfig[];
   releases: ReleaseVersion[];
   securityLevel?: 'Enterprise High' | 'Military Grade' | 'Commercial Standard';
+  storeMeta: AppStoreMetadata;
 }
 
 export interface DomainRouteSetting {
@@ -130,4 +168,22 @@ export interface SecurityAuditReport {
   binaryStripping: 'Enabled (Đã gỡ bỏ toàn bộ debug symbols)';
   apiGatewayProtection: 'Zero-Trust RBAC Token Enforced';
   distributionStorage: 'Dedicated Cloudflare R2 / Global Edge CDN';
+}
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  status: 'pending' | 'running' | 'success' | 'failed';
+  durationMs: number;
+  logs: string[];
+}
+
+export interface SecurityScanFinding {
+  id: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  type: string;
+  file: string;
+  line: number;
+  description: string;
+  remediation: string;
 }
