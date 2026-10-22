@@ -263,7 +263,8 @@ async function storeArtifactMetadata(input: UploadInput, objectKey: string, size
     index = 0;
   }
   const release = releases[index];
-  releases[index] = { ...release, artifacts: [...(release.artifacts || []).filter(item => item.filename !== filename), artifact] };
+  // Uploads stage a draft. Publishing must be an explicit later admin action.
+  releases[index] = { ...release, published: false, artifacts: [...(release.artifacts || []).filter(item => item.filename !== filename), artifact] };
   updated.releases = releases;
   await saveProject(updated);
   return artifact;
@@ -425,6 +426,44 @@ app.get("/api/v1/public/apps", async (_req, res, next) => {
     res.json({ success: true, count: appsList.length, apps: appsList });
   } catch (error) { next(error); }
 });
+app.get("/api/v1/admin/manifest.json", requireAdminAuth, async (_req, res, next) => {
+  try {
+    const projects = await getProjects();
+    const apps: Record<string, unknown> = {};
+    let totalArtifacts = 0;
+    let totalSizeBytes = 0;
+    for (const project of projects) {
+      const artifacts = await getArtifactsForSlug(project.slug);
+      totalArtifacts += artifacts.length;
+      totalSizeBytes += artifacts.reduce((sum, item) => sum + item.sizeBytes, 0);
+      apps[project.slug] = {
+        schemaVersion: "1.0.0",
+        generatedAt: new Date().toISOString(),
+        repository: "Hendy Server App Downloader",
+        app: {
+          id: project.id, name: project.name, slug: project.slug,
+          latestVersion: project.currentVersion, publisher: project.publisher
+        },
+        artifacts: artifacts.map(item => ({
+          id: item.id, filename: item.filename, version: item.version,
+          platform: item.platform, format: item.format, arch: item.arch,
+          sizeBytes: item.sizeBytes, url: item.downloadUrl, sha256: item.sha256,
+          uploadedAt: item.createdAt, contentType: item.contentType,
+          verified: item.verified, published: (project.releases || []).some(release =>
+            Boolean(release.published) && (versionMatches(release.version, item.version) || versionMatches(release.tag, item.version))
+          )
+        }))
+      };
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      success: true, schemaVersion: "1.0.0", generatedAt: new Date().toISOString(),
+      repositoryId: "hendy-server-app-downloader", repositoryName: "Hendy Server App Downloader",
+      totalArtifacts, totalSizeBytes, apps
+    });
+  } catch (error) { next(error); }
+});
+
 app.get("/api/v1/public/manifest.json", async (_req, res, next) => {
   try {
     const projects = await getProjects();
@@ -486,6 +525,14 @@ app.get("/api/v1/downloads/artifacts/:filename", async (req, res, next) => {
     const artifact = await findArtifactByFilename(filename);
     if (!artifact) {
       res.status(404).json({ success: false, error: "Không tìm thấy tệp phát hành." });
+      return;
+    }
+    const ownerProject = await getProjectBySlug(artifact.slug);
+    const publiclyPublished = Boolean(ownerProject?.releases?.some(release =>
+      release.published && (versionMatches(release.version, artifact.version) || versionMatches(release.tag, artifact.version))
+    ));
+    if (!publiclyPublished) {
+      res.status(404).json({ success: false, error: "Bản phát hành chưa được công khai." });
       return;
     }
     if (s3) {
