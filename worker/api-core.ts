@@ -219,8 +219,10 @@ function validateUploadInput(body: Record<string, unknown>): UploadInput | null 
   return { projectSlug, version, originalFilename, platform, format, arch };
 }
 async function sha256Hex(bytes: ArrayBuffer | Uint8Array): Promise<string> {
-  const input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", input);
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const input = new Uint8Array(view.byteLength);
+  input.set(view);
+  const digest = await crypto.subtle.digest("SHA-256", input.buffer);
   return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");
 }
 function randomToken(size = 32): string {
@@ -537,14 +539,15 @@ export async function dispatchApi(request: Request, env: CloudflareEnv): Promise
         const projectId = decodeURIComponent(filePatch[1]);
         const fileId = decodeURIComponent(filePatch[2]);
         const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-        if (typeof body.content !== "string") return failure("Nội dung tệp không hợp lệ.", 400);
+        const content = body.content;
+        if (typeof content !== "string") return failure("Nội dung tệp không hợp lệ.", 400);
         const project = await getProjectById(env, projectId);
         if (!project) return failure("Không tìm thấy dự án.", 404);
         let found = false;
         project.files = project.files.map(file => {
           if (file.id !== fileId) return file;
           found = true;
-          return { ...file, content: body.content };
+          return { ...file, content };
         });
         if (!found) return failure("Không tìm thấy tệp nguồn.", 404);
         await saveProject(env, project);
