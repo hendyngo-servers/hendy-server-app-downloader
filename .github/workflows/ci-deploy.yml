@@ -37,6 +37,8 @@ jobs:
         run: npm install
       - name: Type-check TypeScript, including Worker and Pages Functions
         run: npm run lint
+      - name: Test Cloudflare deployment configuration helpers
+        run: node --experimental-strip-types --test src/utils/workersPagesConfig.test.ts
       - name: Build separate Portal and Admin entries
         run: npm run build
       - name: Verify separate frontend bundles
