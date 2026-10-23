@@ -27,7 +27,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -84,10 +83,10 @@ jobs:
           writeFileSync(".cloudflare-runtime-secrets.json", JSON.stringify(values), { mode: 0o600 });
           NODE
       - name: Deploy full-stack Cloudflare Worker with initial secrets
-        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'workers' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == '' || vars.CLOUDFLARE_TARGET == 'workers' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'workers' || inputs.target == 'both')) || (github.event_name == 'push' && (vars.CLOUDFLARE_TARGET == '' || vars.CLOUDFLARE_TARGET == 'workers' || vars.CLOUDFLARE_TARGET == 'both')) }}
         run: npx --yes wrangler@4.152.0 deploy --config=wrangler.toml --secrets-file .cloudflare-runtime-secrets.json
       - name: Ensure Cloudflare Pages project exists
-        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -110,10 +109,10 @@ jobs:
           fi
           rm -f .pages-projects.json
       - name: Set Pages Functions runtime secrets
-        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
         run: npx --yes wrangler@4.152.0 pages secret bulk .cloudflare-runtime-secrets.json --project-name=hendy-server-app-downloader --config=wrangler.pages.toml
       - name: Deploy Cloudflare Pages and Functions
-        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
         run: npx --yes wrangler@4.152.0 pages deploy dist --project-name=hendy-server-app-downloader --branch=main --config=wrangler.pages.toml
       - name: Persist generated non-secret D1 ID in repository
         if: success()
