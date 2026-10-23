@@ -22,5 +22,4 @@ binding = "ARTIFACTS"
 bucket_name = "hendy-server-app-artifacts"
 
 [vars]
-ADMIN_DISPLAY_NAME = "Hendy Administrator"
 MAX_UPLOAD_BYTES = "52428800"

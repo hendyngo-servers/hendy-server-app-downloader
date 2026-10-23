@@ -1,7 +1,7 @@
 /**
  * Hostname-based router for local previews and single-origin development.
  * Production deploys use src/index.html and src/admin.html as separate entries,
- * routed by the Cloudflare Worker / Pages Function / Render host router.
+ * routed by the Cloudflare Worker / Pages Function host router.
  */
 import React, { lazy, Suspense, useEffect, useState } from "react";
 import { loadPublicDomainRoutes, routeFor } from "./client/shared/store.ts";
