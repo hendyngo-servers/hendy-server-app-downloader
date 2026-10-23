@@ -49,7 +49,7 @@ function safeToml(value: string): string {
   return String(value || "").replace(/["\r\n]/g, "").slice(0, 120);
 }
 
-/** wrangler.toml configures Pages output and deliberately includes no fake resource IDs. */
+/** Generates the full-stack Cloudflare Worker configuration template. */
 export function generateWranglerConfig(config: CloudflareWorkersPagesConfig): string {
   const project = safeToml(config.projectName || "hendy-server-app-downloader");
   const bucket = safeToml(config.r2Bucket || "hendy-server-app-artifacts");
@@ -179,42 +179,38 @@ export function getWorkersPagesDirectoryTree(): DirectoryNode {
       
       
       { name: "wrangler.toml", type: "file", path: "/wrangler.toml", description: "Cấu hình Cloudflare Pages; không chứa resource ID giả hoặc secret" },
-      { name: "src/App.tsx", type: "file", path: "/src/App.tsx", description: "Giao diện Studio và cổng tải phần mềm" },
-      { name: "README.md", type: "file", path: "/README.md", description: "Tài liệu thiết lập môi trường và triển khai" }
+      { name: "src/client/portal/DownloadPortal.tsx", type: "file", path: "/src/client/portal/DownloadPortal.tsx", description: "Public Portal entry" },
+      { name: "src/client/admin/AdminPanelPlus.tsx", type: "file", path: "/src/client/admin/AdminPanelPlus.tsx", description: "Admin Control Center entry" },
+      { name: "README.md", type: "file", path: "/README.md", description: "Cloudflare-only configuration, secrets, deployment and smoke checks" }
     ]
   };
 }
 
 export function generateSystemArchitectureMarkdown(config: CloudflareWorkersPagesConfig): string {
   return [
-    "# Hendy Server App Downloader — kiến trúc triển khai",
+    "# Hendy Server App Store — Cloudflare-only architecture",
     "",
-    "~~~text",
-    "Người dùng / Quản trị viên",
-    "          | HTTPS",
-    "          v",
-    "Cloudflare Workers Assets or Cloudflare Pages (React/Vite static UI)",
-    "          | Native API dispatch in Worker / Pages Functions",
-    "          v",
-    "Cloudflare Worker native API (or Cloudflare Pages Functions)",
-    "        |                    |",
-    "        v                    v",
-    "Cloudflare D1 metadata   Cloudflare R2 private bucket",
-    "        |                    |",
-    "        +---- artifact metadata / signed downloads ----+",
-    "~~~",
+    "Browser",
+    "   | HTTPS",
+    "   v",
+    "Cloudflare Worker (Assets + native API) OR Cloudflare Pages + Pages Functions",
+    "   |                           |",
+    "   v                           v",
+    "Cloudflare D1 metadata       Cloudflare R2 private artifact bucket",
+    "   |                           |",
+    "   +----- authenticated publishing / verified downloads -----+",
     "",
-    "## Cấu hình hiện tại",
+    "## Current template",
     "- Repository: " + config.githubRepoUrl,
-    "- Pages project: " + config.projectName + " (branch " + config.pagesBranch + ")",
-    "- Metadata: D1; binaries: private R2 bucket " + config.r2Bucket,
-    "- API: " + config.apiEndpoint + "; D1/R2 bindings are configured in Wrangler",
+    "- Cloudflare project: " + config.projectName + " (branch " + config.pagesBranch + ")",
+    "- Metadata and sessions: D1; binaries: R2 bucket " + config.r2Bucket,
+    "- API: " + config.apiEndpoint + " (Bearer session required)",
     "",
-    "## Bảo mật và giới hạn",
-    "- API admin kiểm tra phiên Bearer ở backend; ẩn tab frontend không phải biện pháp bảo vệ.",
-    "- Artifact chỉ được công khai khi release đã xuất bản và có tệp thật lưu trong kho.",
-    "- SHA-256 xác minh tính toàn vẹn byte; không chứng minh nhà phát hành đã ký mã nhị phân.",
-    "- Domain/TLS, R2 CORS, database backup và secrets phải được xác thực trong tài khoản thực; tài liệu này không khẳng định chúng đã được tạo.",
+    "## Security and operational notes",
+    "- Admin API validates sessions; a separate hostname or hidden link is not authorization.",
+    "- Public catalog contains published releases and registered artifacts only.",
+    "- SHA-256 checks byte integrity; it does not prove an installer was digitally signed.",
+    "- D1/R2 provisioning, runtime secrets, DNS and TLS must be confirmed in Cloudflare; example domains are not live configuration.",
     ""
   ].join("\n");
 }
