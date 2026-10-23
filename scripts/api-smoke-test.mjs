@@ -10,7 +10,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 async function jsonRequest(path, init) {
-  const response = await fetch(origin + path, init);
+  const response = await fetch(origin + path, { ...init, signal: init?.signal || AbortSignal.timeout(10000) });
   let data = {};
   try { data = await response.json(); } catch { /* checked below */ }
   return { response, data };
@@ -19,14 +19,24 @@ function runCommand(args) {
   return new Promise((resolve, reject) => {
     const proc = spawn(npx, args, { stdio: ["ignore", "pipe", "pipe"], env: process.env });
     let output = "";
+    const watchdog = setTimeout(() => {
+      output += "\\nCommand watchdog expired after 45 seconds; terminating child process.";
+      proc.kill("SIGKILL");
+    }, 45000);
     proc.stdout.on("data", chunk => { output = (output + chunk.toString()).slice(-12000); });
     proc.stderr.on("data", chunk => { output = (output + chunk.toString()).slice(-12000); });
-    proc.on("error", reject);
-    proc.on("exit", code => code === 0 ? resolve(output) : reject(new Error("Command failed: npx " + args.join(" ") + "\n" + output)));
+    proc.on("error", error => { clearTimeout(watchdog); reject(error); });
+    proc.on("exit", code => {
+      clearTimeout(watchdog);
+      code === 0 ? resolve(output) : reject(new Error("Command failed: npx " + args.join(" ") + "\\n" + output));
+    });
   });
 }
 async function main() {
-  await runCommand(["--yes", "wrangler@4.152.0", "d1", "migrations", "apply", "hendy-server-app-store", "--local", "--config=wrangler.toml", "--yes"]);
+  console.log("Applying D1 migrations to local Wrangler storage...");
+  const migrationOutput = await runCommand(["--yes", "wrangler@4.152.0", "d1", "migrations", "apply", "hendy-server-app-store", "--local", "--config=wrangler.toml", "--yes"]);
+  console.log(migrationOutput.slice(-3000));
+  console.log("Starting local Cloudflare Worker...");
   child = spawn(npx, [
     "--yes", "wrangler@4.152.0", "dev", "--local", "--config=wrangler.toml",
     "--ip", "127.0.0.1", "--port", String(port),
@@ -132,8 +142,6 @@ async function main() {
   const afterLogout = await jsonRequest("/api/v1/auth/me", { headers: { Authorization: "Bearer " + token } });
   assert(afterLogout.response.status === 401, "Logged-out session must not authenticate.");
 
-  const sharedRoot = await fetch(origin + "/", { headers: { Host: "shared.example.test" } });
-  // Wrangler's local router may canonicalize Host; test the exported API route regardless.
   console.log("Cloudflare Worker API smoke tests passed: health, D1/R2 bindings, auth, seeded projects, domain routing, upload/hash, publish filtering, R2 download, logout.");
 }
 try {
