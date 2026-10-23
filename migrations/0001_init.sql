@@ -47,3 +47,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   ip_address TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS domain_routes (
+  hostname TEXT PRIMARY KEY,
+  target_view TEXT NOT NULL CHECK (target_view IN ('admin', 'downloads')),
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_by TEXT NOT NULL DEFAULT 'system',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS domain_routes_view_idx ON domain_routes (target_view, enabled);
