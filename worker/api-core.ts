@@ -365,9 +365,12 @@ async function handleDirectUpload(request: Request, env: CloudflareEnv, ticketId
   const ticket = await getTicket(env, ticketId);
   if (!ticket || ticket.username !== session.username || ticket.expiresAt <= Date.now()) return failure("Phiếu tải lên đã hết hạn hoặc không hợp lệ.", 400, "INVALID_UPLOAD_TICKET");
   if (request.method !== "PUT") return failure("Phương thức không được hỗ trợ.", 405, "METHOD_NOT_ALLOWED");
-  const bytes = await request.arrayBuffer();
   const maxBytes = Number(env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024);
+  const declaredBytes = Number(request.headers.get("Content-Length") || 0);
+  if (declaredBytes > maxBytes) return failure("Tệp vượt giới hạn tải lên hiện tại.", 413, "UPLOAD_TOO_LARGE");
+  const bytes = await request.arrayBuffer();
   if (bytes.byteLength <= 0 || bytes.byteLength > maxBytes) return failure("Tệp rỗng hoặc vượt giới hạn tải lên hiện tại.", 413, "UPLOAD_TOO_LARGE");
+  if (declaredBytes > 0 && declaredBytes !== bytes.byteLength) return failure("Kích thước tệp không khớp.", 400, "ARTIFACT_SIZE_MISMATCH");
   await bucketFor(env).put(ticket.objectKey, bytes, { httpMetadata: { contentType: contentTypeFor(ticket.filename) } });
   await dbFor(env).prepare("UPDATE upload_tickets SET uploaded = 1, size_bytes = ? WHERE id = ?").bind(bytes.byteLength, ticket.id).run();
   return jsonResponse({ success: true, uploaded: true, sizeBytes: bytes.byteLength });
