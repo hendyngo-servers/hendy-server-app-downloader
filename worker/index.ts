@@ -59,8 +59,8 @@ export default {
 
     if (!isHtmlNavigation(path)) return withSecurityHeaders(await env.ASSETS.fetch(request));
 
-    let view: "admin" | "downloads" = path === "/admin" ? "admin" : await resolveDomainView(host, env);
-    if (path === "/admin.html" && view !== "admin") {
+    const view = await resolveDomainView(host, env);
+    if ((path === "/admin.html" || path === "/admin") && view !== "admin") {
       return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
     }
 
