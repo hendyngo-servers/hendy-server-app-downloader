@@ -1018,6 +1018,29 @@ async function startServer(): Promise<void> {
         next();
       } catch (error) { next(error); }
     });
+    app.use((req, res, next) => {
+      const configuredSharedHost = normalizeHostname(process.env.SHARED_API_DOMAIN || "");
+      const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+      const host = normalizeHostname(forwardedHost || req.get("host") || req.hostname);
+      if (!configuredSharedHost || host !== configuredSharedHost) return next();
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      if (req.path === "/" || req.path === "/index.html") {
+        res.json({
+          service: "Hendy Shared API",
+          status: "online",
+          apiBase: "/api/v1",
+          health: "/healthz",
+          modules: {
+            portal: "public store UI",
+            admin: "admin UI (authentication required)",
+            shared: "shared API and data services"
+          }
+        });
+        return;
+      }
+      res.status(404).type("text/plain").send("Not Found");
+    });
     app.use(express.static(path.resolve(ROOT, "dist"), { index: false, maxAge: "1h" }));
     app.get("*", async (req, res, next) => {
       try {
