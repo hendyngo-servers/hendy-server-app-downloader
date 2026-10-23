@@ -2,7 +2,7 @@
  * Pages host router. Separate multipage entries are selected by hostname;
  * requests for assets continue through Pages' static asset resolver.
  */
-interface Env { BACKEND_ORIGIN?: string; }
+interface Env { BACKEND_ORIGIN?: string; SHARED_API_DOMAIN?: string; }
 interface Context { request: Request; env: Env; next: (request?: Request) => Promise<Response>; }
 type DomainView = "admin" | "downloads";
 interface RouteCacheValue { view: DomainView; expiresAt: number; }
@@ -51,9 +51,23 @@ export async function onRequest(context: Context): Promise<Response> {
   const { request, env, next } = context;
   const url = new URL(request.url);
   const pathname = url.pathname;
+  const host = url.hostname.toLowerCase().replace(/\\.$/, "");
+  const sharedHost = Boolean(env.SHARED_API_DOMAIN && env.SHARED_API_DOMAIN.toLowerCase().replace(/\\.$/, "") === host);
 
   // API functions have their own explicit functions/api/[[path]].ts route.
-  if (pathname === "/api" || pathname.startsWith("/api/")) return next(request);
+  if (pathname === "/api" || pathname.startsWith("/api/") || pathname === "/healthz") return next(request);
+  if (sharedHost) {
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
+    }
+    if (pathname === "/" || pathname === "/index.html") {
+      return Response.json({
+        service: "Hendy Shared API", status: "online", apiBase: "/api/v1", health: "/healthz",
+        modules: { portal: "public store UI", admin: "admin UI (authentication required)", shared: "shared API and data services" }
+      }, { headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+    }
+    return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+  }
 
   const pageRequest = pathname === "/" || pathname === "/index.html" || pathname === "/admin.html" ||
     !pathname.split("/").pop()?.includes(".");
