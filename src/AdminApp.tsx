@@ -3,7 +3,7 @@
  * separate entry and is not imported by this bundle.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { BuildArtifact, CloudflareWorkersPagesConfig, ProjectTemplate, ReleaseVersion, TargetPlatform } from './types/index.ts';
+import type { BuildArtifact, CloudflareWorkersPagesConfig, ProjectTemplate, ReleaseVersion } from './types/index.ts';
 import { SAMPLE_PROJECTS } from './utils/sampleProjects.ts';
 import { getDefaultDeploymentConfig } from './utils/workersPagesConfig.ts';
 import { AdminHeader } from './components/admin/AdminHeader.tsx';
