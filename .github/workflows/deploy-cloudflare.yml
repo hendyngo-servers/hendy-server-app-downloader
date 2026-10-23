@@ -66,7 +66,7 @@ jobs:
       - name: Ensure Cloudflare D1 and R2 resources exist
         run: node scripts/ensure-cloudflare-resources.mjs
       - name: Apply Cloudflare D1 migrations
-        run: npx --yes wrangler@4.152.0 d1 migrations apply hendy-server-app-store --remote --config=wrangler.toml --yes
+        run: npx --yes wrangler@4.152.0 d1 migrations apply hendy-server-app-store --remote --config=wrangler.toml
       - name: Prepare runtime secrets
         shell: bash
         run: |
