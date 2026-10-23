@@ -257,7 +257,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className={activeMode === 'studio' ? 'hendy-app hendy-app-admin flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans' : 'hendy-app hendy-app-store flex flex-col h-screen w-screen bg-slate-50 text-slate-900 overflow-hidden font-sans'}>
       {/* Hộp thông báo nhanh Toast */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 border border-indigo-500/60 text-slate-100 px-4 py-2.5 rounded-xl shadow-xl text-xs flex items-center gap-2">

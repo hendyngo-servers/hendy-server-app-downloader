@@ -75,7 +75,7 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
   });
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-100 overflow-y-auto">
+    <div className="download-portal-v2 flex-1 bg-slate-950 text-slate-100 overflow-y-auto">
       {/* Modal Chạy thử trực tiếp WebAssembly */}
       <WebSandboxModal
         isOpen={showSandbox}
