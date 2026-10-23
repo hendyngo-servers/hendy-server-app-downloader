@@ -1,109 +1,64 @@
-/**
- * Pages host router. Separate multipage entries are selected by hostname;
- * requests for assets continue through Pages' static asset resolver.
- */
-interface Env { BACKEND_ORIGIN?: string; SHARED_API_DOMAIN?: string; }
-interface Context { request: Request; env: Env; next: (request?: Request) => Promise<Response>; }
-type DomainView = "admin" | "downloads";
-interface RouteCacheValue { view: DomainView; expiresAt: number; }
-const cache = new Map<string, RouteCacheValue>();
+import { dispatchApi, isSharedApiHost, jsonResponse, resolveDomainView, type CloudflareEnv } from "../worker/api-core";
 
-function validBackendOrigin(value: string | undefined): URL | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return null;
-    if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) return null;
-    return url;
-  } catch { return null; }
+interface Context {
+  request: Request;
+  env: CloudflareEnv;
+  next: (request?: Request) => Promise<Response>;
 }
-
-async function resolveDomain(hostname: string, env: Env): Promise<DomainView> {
-  const host = hostname.toLowerCase().replace(/\.$/, "");
-  const cached = cache.get(host);
-  if (cached && cached.expiresAt > Date.now()) return cached.view;
-  const backend = validBackendOrigin(env.BACKEND_ORIGIN);
-  if (!backend) return "downloads";
-
-  try {
-    const endpoint = new URL("/api/v1/public/domain-route", backend);
-    endpoint.searchParams.set("host", host);
-    const response = await fetch(endpoint.toString(), {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(2500)
-    });
-    if (!response.ok) return "downloads";
-    const data = await response.json() as { success?: boolean; targetView?: string };
-    const view: DomainView = data.success && data.targetView === "admin" ? "admin" : "downloads";
-    cache.set(host, { view, expiresAt: Date.now() + 20_000 });
-    if (cache.size > 500) {
-      const now = Date.now();
-      for (const [key, item] of cache) if (item.expiresAt <= now) cache.delete(key);
-    }
-    return view;
-  } catch {
-    // Fail to the public surface if the routing API is temporarily unavailable.
-    return "downloads";
+function withSecurityHeaders(response: Response, admin = false): Response {
+  const headers = new Headers(response.headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "SAMEORIGIN");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (admin) {
+    headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+    headers.set("Cache-Control", "no-store");
   }
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
-
+function sharedDescriptor(): Response {
+  return jsonResponse({
+    service: "Hendy Shared API",
+    status: "online",
+    apiBase: "/api/v1",
+    health: "/healthz",
+    storage: ["Cloudflare D1", "Cloudflare R2"],
+    modules: {
+      portal: "Public software store",
+      admin: "Private admin console; authentication required",
+      shared: "Shared API, metadata, sessions and artifact storage"
+    }
+  }, 200, { "Cache-Control": "no-store" });
+}
 export async function onRequest(context: Context): Promise<Response> {
   const { request, env, next } = context;
   const url = new URL(request.url);
-  const pathname = url.pathname;
+  const path = url.pathname;
   const host = url.hostname.toLowerCase().replace(/\.$/, "");
-  const sharedHost = Boolean(env.SHARED_API_DOMAIN && env.SHARED_API_DOMAIN.toLowerCase().replace(/\.$/, "") === host);
 
-  // API functions have their own explicit functions/api/[[path]].ts route.
-  if (pathname === "/api" || pathname.startsWith("/api/")) return next(request);
-  if (pathname === "/healthz") {
-    const backend = validBackendOrigin(env.BACKEND_ORIGIN);
-    if (!backend) return Response.json({ success: false, error: "BACKEND_ORIGIN is not configured." }, { status: 503, headers: { "Cache-Control": "no-store" } });
-    try {
-      const response = await fetch(new URL("/healthz", backend), { method: request.method, headers: { Accept: "application/json" } });
-      const headers = new Headers(response.headers);
-      headers.set("Cache-Control", "no-store");
-      return new Response(response.body, { status: response.status, headers });
-    } catch {
-      return Response.json({ success: false, error: "Backend unavailable." }, { status: 502, headers: { "Cache-Control": "no-store" } });
-    }
-  }
-  if (sharedHost) {
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
-    }
-    if (pathname === "/" || pathname === "/index.html") {
-      return Response.json({
-        service: "Hendy Shared API", status: "online", apiBase: "/api/v1", health: "/healthz",
-        modules: { portal: "public store UI", admin: "admin UI (authentication required)", shared: "shared API and data services" }
-      }, { headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
-    }
+  if (path === "/healthz") return withSecurityHeaders(await dispatchApi(request, env));
+  if (path === "/api" || path.startsWith("/api/")) return next(request);
+
+  if (isSharedApiHost(host, env)) {
+    if (path === "/" || path === "/index.html") return sharedDescriptor();
+    if (path === "/admin.html" || path === "/admin") return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
     return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
   }
 
-  const pageRequest = pathname === "/" || pathname === "/index.html" || pathname === "/admin.html" ||
-    !pathname.split("/").pop()?.includes(".");
+  const pageRequest = path === "/" || path === "/index.html" || path === "/admin.html" || path === "/admin" ||
+    !path.split("/").pop()?.includes(".");
   if (!pageRequest) return next(request);
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   }
 
-  const view = await resolveDomain(url.hostname, env);
-  if (pathname === "/admin.html" && view !== "admin") {
+  const view = path === "/admin" ? "admin" : await resolveDomainView(host, env);
+  if (path === "/admin.html" && view !== "admin") {
     return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
   }
-
   const rewritten = new URL(url.toString());
   rewritten.pathname = view === "admin" ? "/admin.html" : "/index.html";
   rewritten.search = "";
   const response = await next(new Request(rewritten.toString(), request));
-  const headers = new Headers(response.headers);
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("X-Frame-Options", "SAMEORIGIN");
-  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  if (view === "admin") {
-    headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
-    headers.set("Cache-Control", "no-store");
-  }
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  return withSecurityHeaders(response, view === "admin");
 }
