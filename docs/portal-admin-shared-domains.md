@@ -1,54 +1,62 @@
-# Portal / Admin / Shared domain routing
+# Portal / Admin / Shared — Cloudflare-only domains
 
-The app has two separate web interfaces and one shared API/data layer. **Shared is not a third React UI**: it is the common API, typed models, store client, integrity modal and publish modal under `src/client/shared/`.
+Hendy Server App Store runs without Render or an external API origin. Both deployment options use `worker/api-core.ts` and Cloudflare bindings: D1 for metadata/sessions and R2 for installer artifacts.
 
 ## Recommended hostnames
 
-Use three subdomains of a domain you control. These are examples only; replace them with your real domain.
+Use three hostnames from a domain you control. These names are examples only.
 
-| Module | Example hostname | What opens there |
+| Module | Example hostname | Behaviour |
 |---|---|---|
-| Public Portal | `tai-ve.example.com` | Public Store entry `dist/index.html` |
-| Admin Control Center | `quan-tri.example.com` | Admin entry `dist/admin.html`; login remains required |
-| Shared API | `api.example.com` | API gateway; `/` returns a service descriptor, `/api/v1/*` forwards to the Render API |
+| Public Portal | `downloads.example.com` | Serves `dist/index.html` |
+| Admin Control Center | `admin.example.com` | Serves `dist/admin.html`; login and protected API endpoints required |
+| Shared API | `api.example.com` | JSON descriptor at `/`, health at `/healthz`, endpoints under `/api/v1/*` |
 
-## Required settings
+Shared is the shared API/data layer, not a third React frontend.
 
-### Render Web Service
+## Required GitHub Actions secrets
 
-Set these environment variables in Render (do not commit secrets):
+- `CLOUDFLARE_API_TOKEN`: scoped to the account for D1 database, R2 bucket, Workers/Pages deployment, migrations and runtime secrets.
+- `CLOUDFLARE_ACCOUNT_ID`: target Cloudflare account ID.
+- `ADMIN_USERNAME`: non-default administrator username.
+- `ADMIN_PASSWORD`: long random password, never committed to source.
 
-- `ADMIN_DOMAIN=quan-tri.example.com`
-- `PUBLIC_DOWNLOAD_DOMAIN=tai-ve.example.com`
-- `SHARED_API_DOMAIN=api.example.com`
-- `DATABASE_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and R2 credentials as required by the service.
+Optional repository variables are `CLOUDFLARE_DEPLOY_ENABLED=true`, `CLOUDFLARE_TARGET=workers|pages|both`, `ADMIN_DISPLAY_NAME`, `ADMIN_DOMAIN`, `PUBLIC_DOWNLOAD_DOMAIN`, and `SHARED_API_DOMAIN`.
 
-The hostname mapping API persists Portal/Admin routes in PostgreSQL. The Shared API hostname is an edge-routing setting, not a third row in the Portal/Admin UI mapping table.
+## Deploy
 
-### GitHub Actions secrets
-
-Under **Settings → Secrets and variables → Actions → Secrets**, configure:
-
-- `CLOUDFLARE_API_TOKEN`: a newly rotated token with permission to deploy Workers and Pages.
-- `CLOUDFLARE_ACCOUNT_ID`: the target Cloudflare account ID.
-- `RENDER_BACKEND_ORIGIN`: the Render service origin, e.g. `https://your-service.onrender.com`.
-- `SHARED_API_DOMAIN`: optional hostname such as `api.example.com` (hostname only, no scheme or path).
-
-The existing `ci-deploy.yml` remains the automatic deployment workflow for pushes to `main` when repository variable `CLOUDFLARE_DEPLOY_ENABLED=true`. The new `deploy-cloudflare.yml` is a manual redeploy/target-selection workflow under Actions. Both require the secrets above. Set `SHARED_API_DOMAIN` as a Worker variable and Pages Functions variable too if deploying through Cloudflare's dashboard rather than Actions.
+1. Open **Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow**.
+2. Select `workers` for a single full-stack Worker (recommended), `pages` for Pages + Pages Functions, or `both` only when you need to operate both.
+3. The workflow checks/creates D1 `hendy-server-app-store` and R2 `hendy-server-app-artifacts`, writes the D1 UUID to both Wrangler configs, runs `migrations/d1/0001_init.sql`, writes runtime secrets and deploys the chosen target.
+4. Optionally set `CLOUDFLARE_DEPLOY_ENABLED=true` to deploy automatically on pushes to `main`. Set `CLOUDFLARE_TARGET` to `workers`, `pages` or `both`; when unset, automatic deployments default to Workers.
+5. Review the Actions result. A successful code deployment does not prove that external custom-domain names are attached or DNS/TLS is active.
 
 ## DNS and TLS
 
-Deploying code does **not** create DNS records or bind custom domains automatically. In Cloudflare, attach all three hostnames to the correct Pages project/Worker and follow the provider's DNS/TLS prompts. If using Render for the public frontend, attach Portal/Admin hostnames to the Render service and add the corresponding DNS records at the authoritative DNS provider. For the Shared API hostname, attach it to the API gateway/Worker or the Render service that proxies `/api/*`.
+After the Worker or Pages project exists, attach each hostname under the Cloudflare custom-domain settings for the correct project. Follow the DNS and certificate instructions shown in Cloudflare Dashboard. Do not direct every hostname at both the Worker and Pages project at once.
 
-Do not expose admin-only endpoints without authentication. The hostname is only a routing selector, not an authorization boundary. Admin APIs must continue to enforce Bearer-session authentication.
+Set the hostname variables as plain hostnames only, without a scheme, port or path:
 
-## Verify after deployment
+- `ADMIN_DOMAIN=admin.example.com`
+- `PUBLIC_DOWNLOAD_DOMAIN=downloads.example.com`
+- `SHARED_API_DOMAIN=api.example.com`
 
-- `https://tai-ve.example.com/` renders the public store.
-- `https://quan-tri.example.com/` renders the admin control center and requires login.
-- `https://api.example.com/` returns JSON identifying the Shared API service.
-- `https://api.example.com/healthz` checks the backend health.
-- `https://api.example.com/api/v1/public/apps` returns published apps.
-- `https://api.example.com/api/v1/admin/projects` without a valid session must return HTTP 401.
+The Admin and Portal hostname mappings are stored in D1 by the protected `PUT /api/v1/admin/domain-routes` endpoint. The Shared API host is selected by `SHARED_API_DOMAIN` and is not stored as an extra UI route. Administrative API calls remain protected by Bearer session authentication; hiding the admin link or using a separate domain does not replace authorization.
 
-The GitHub release workflow can publish the source and web build. It attaches Windows `.exe/.msi` and Android `.apk` packages only if real packages are provided in `release-assets/windows/` and `release-assets/android/`. This repository does not currently contain native Windows or Android build projects, so the workflow must not invent those binaries.
+## Verify
+
+- Portal: `https://downloads.example.com/`
+- Admin: `https://admin.example.com/`
+- Shared service descriptor: `https://api.example.com/`
+- Health: `https://api.example.com/healthz`
+- Published catalog: `https://api.example.com/api/v1/public/apps`
+- Unauthenticated admin API request must return HTTP 401.
+
+## Data model
+
+- D1: `migrations/d1/0001_init.sql`
+- D1 binding: `DB`
+- R2 bucket: `hendy-server-app-artifacts`
+- R2 binding: `ARTIFACTS`
+
+The application uses the R2 binding directly; no S3 API keys are required at runtime. The CI smoke test applies the D1 migration locally and exercises auth, route mappings, upload/checksum, publish filtering, download bytes and logout revocation.

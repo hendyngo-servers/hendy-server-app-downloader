@@ -113,7 +113,7 @@ export const DomainConfigPanel: React.FC<Props> = ({ isOpen, onClose, config, on
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[.18em] text-violet-300">API CONTROL PLANE</p>
             <h2 id="domain-routing-title" className="mt-1 text-xl font-extrabold tracking-tight">Định tuyến hai giao diện theo tên miền</h2>
-            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">Hostname được lưu trên backend và Worker/Render dùng để chọn đúng entry point. Cấu hình này không tự tạo bản ghi DNS hoặc cấp chứng chỉ TLS.</p>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">Hostname được lưu trong Cloudflare D1 và Worker/Pages Functions dùng để chọn đúng entry point. Cấu hình này không tự tạo bản ghi DNS hoặc cấp chứng chỉ TLS.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-xl px-3 py-2 text-xl text-slate-400 hover:bg-slate-800 hover:text-white">×</button>
         </div>
@@ -152,7 +152,7 @@ export const DomainConfigPanel: React.FC<Props> = ({ isOpen, onClose, config, on
             </div>
 
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-[11px] leading-5 text-amber-100/80">
-              <strong className="text-amber-200">Bước triển khai sau khi lưu:</strong> thêm mỗi hostname vào đúng dịch vụ Cloudflare Workers/Pages hoặc Render; trỏ DNS theo hướng dẫn nền tảng và chờ TLS hoạt động. Không đặt Cloudflare API token trong trình duyệt hoặc mã nguồn.
+              <strong className="text-amber-200">Bước triển khai sau khi lưu:</strong> gắn mỗi hostname vào đúng Cloudflare Worker hoặc Pages project; trỏ DNS theo hướng dẫn Cloudflare và chờ TLS hoạt động. Không đặt Cloudflare API token trong trình duyệt hoặc mã nguồn.
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-800 pt-4 sm:flex-row sm:justify-end">

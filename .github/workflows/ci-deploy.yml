@@ -1,17 +1,20 @@
-name: Build and deploy Hendy Server App Downloader
+name: Validate Hendy Server App Store for Cloudflare
 
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+    paths-ignore:
+      - wrangler.toml
+      - wrangler.pages.toml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: hendy-app-downloader-${{ github.ref }}
+  group: hendy-cloudflare-ci-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,196 +27,32 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Set up Bun (validate Cloudflare lockfile)
+      - name: Set up Bun (verify lockfile)
         uses: oven-sh/setup-bun@v2
       - name: Verify frozen Bun lockfile
         run: bun install --frozen-lockfile
-      - name: Ensure frozen install leaves lockfile unchanged
+      - name: Ensure frozen install does not edit lockfile
         run: git diff --exit-code -- bun.lock
-      - name: Install dependencies
+      - name: Install npm dependencies
         run: npm install
-      - name: Type-check
+      - name: Type-check TypeScript, including Worker and Pages Functions
         run: npm run lint
-      - name: API smoke tests
-        run: npm run test:api
-      - name: Build frontend
+      - name: Test Cloudflare deployment configuration helpers
+        run: node --experimental-strip-types --test src/utils/workersPagesConfig.test.ts
+      - name: Build separate Portal and Admin entries
         run: npm run build
       - name: Verify separate frontend bundles
         run: node scripts/verify-frontend-separation.mjs
-      - name: Validate Worker and static asset configuration
-        run: npx wrangler@4.152.0 deploy --dry-run --config=wrangler.toml
+      - name: Test Cloudflare API with local D1 and R2
+        run: npm run test:api
+      - name: Validate Workers configuration
+        run: npx --yes wrangler@4.152.0 deploy --dry-run --config=wrangler.toml
+      - name: Validate Pages Functions configuration
+        run: npx --yes wrangler@4.152.0 pages functions build --outdir=.wrangler/pages-functions --config=wrangler.pages.toml
       - name: Upload static build
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-dist
+          name: hendy-cloudflare-dist
           path: dist/
           if-no-files-found: error
           retention-days: 1
-
-  deploy-cloudflare-pages:
-    if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/main' &&
-      vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
-    needs: build-and-check
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      deployments: write
-    env:
-      RENDER_BACKEND_ORIGIN: ${{ secrets.RENDER_BACKEND_ORIGIN }}
-    steps:
-      - name: Checkout (includes Pages Functions)
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install dependencies
-        run: npm install
-      - name: Build frontend
-        run: npm run build
-      - name: Validate backend origin and prepare Pages binding
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import { writeFileSync } from "node:fs";
-
-          const raw = process.env.RENDER_BACKEND_ORIGIN?.trim();
-          if (!raw) {
-            console.error("Missing repository secret RENDER_BACKEND_ORIGIN. Set it to the HTTPS origin of the deployed Render API.");
-            process.exit(1);
-          }
-
-          let backend;
-          try {
-            backend = new URL(raw);
-          } catch {
-            console.error("RENDER_BACKEND_ORIGIN must be a valid URL.");
-            process.exit(1);
-          }
-
-          if (
-            backend.protocol !== "https:" ||
-            backend.pathname !== "/" ||
-            backend.search ||
-            backend.hash ||
-            backend.username ||
-            backend.password
-          ) {
-            console.error("RENDER_BACKEND_ORIGIN must be an HTTPS origin only, without a path, query, fragment, or credentials.");
-            process.exit(1);
-          }
-
-          writeFileSync(".wrangler-pages-secrets.env", "BACKEND_ORIGIN=" + backend.origin + "\n", { mode: 0o600 });
-          NODE
-      - name: Set Pages Functions backend binding
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages secret bulk .wrangler-pages-secrets.env --project-name=hendy-server-app-downloader --config=wrangler.pages.toml
-      - name: Deploy Cloudflare Pages and Functions
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main --config=wrangler.pages.toml
-      - name: Remove temporary binding file
-        if: always()
-        run: rm -f .wrangler-pages-secrets.env
-
-  deploy-cloudflare-worker:
-    if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/main' &&
-      vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
-    needs: build-and-check
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      RENDER_BACKEND_ORIGIN: ${{ secrets.RENDER_BACKEND_ORIGIN }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install dependencies
-        run: npm install
-      - name: Build frontend assets
-        run: npm run build
-      - name: Validate backend origin and prepare Worker binding
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import { writeFileSync } from "node:fs";
-
-          const raw = process.env.RENDER_BACKEND_ORIGIN?.trim();
-          if (!raw) {
-            console.error("Missing repository secret RENDER_BACKEND_ORIGIN.");
-            process.exit(1);
-          }
-
-          let backend;
-          try {
-            backend = new URL(raw);
-          } catch {
-            console.error("RENDER_BACKEND_ORIGIN must be a valid URL.");
-            process.exit(1);
-          }
-
-          if (
-            backend.protocol !== "https:" ||
-            backend.pathname !== "/" ||
-            backend.search ||
-            backend.hash ||
-            backend.username ||
-            backend.password
-          ) {
-            console.error("RENDER_BACKEND_ORIGIN must be an HTTPS origin only, without a path, query, fragment, or credentials.");
-            process.exit(1);
-          }
-
-          writeFileSync(".wrangler-worker-secrets.env", "BACKEND_ORIGIN=" + backend.origin + "\n", { mode: 0o600 });
-          NODE
-      - name: Deploy full app to Cloudflare Workers (SPA + API gateway)
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config=wrangler.toml
-      - name: Set full app Worker backend secret
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: secret bulk .wrangler-worker-secrets.env --config=wrangler.toml
-      - name: Deploy standalone API gateway Worker
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config=wrangler.worker.toml
-      - name: Set standalone API gateway backend secret
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: secret bulk .wrangler-worker-secrets.env --config=wrangler.worker.toml
-      - name: Remove temporary binding file
-        if: always()
-        run: rm -f .wrangler-worker-secrets.env
-
-  # Render auto-deploys the Node backend from this repository when main changes.
-  # DATABASE_URL, ADMIN_PASSWORD and R2 keys must be set in Render Dashboard.

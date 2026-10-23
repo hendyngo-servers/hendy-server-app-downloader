@@ -1,107 +1,117 @@
-# Hendy Server App Downloader
+# Hendy Server App Store — Cloudflare-only
 
-ForgeOS builds two independent React/Vite entry points: the public software store (`index.html` / `PublicStoreApp`) and the private admin control center (`admin.html` / `AdminApp`). They do not share an in-page mode toggle. The Express backend persists app metadata and hostname routing in PostgreSQL, and stores binaries in private Cloudflare R2.
+Hendy Server App Store separates the public software portal and administrator console into two independent React/Vite entry points, with a shared API and data layer. The runtime uses **Cloudflare Workers or Cloudflare Pages Functions + D1 + R2**. No Render service, Node/Express origin, PostgreSQL server, or external API backend is required.
 
 ## Architecture
 
-- Cloudflare Workers serve `dist/index.html` on the Public Store hostname and `dist/admin.html` on the Admin hostname. `worker/index.ts` resolves hostname mappings through the backend API; `/admin.html` is rejected on a hostname mapped to the public store.
-- Cloudflare Pages uses a catch-all Pages Function to select the same independent entry points. `public/_routes.json` keeps hashed static assets out of Function invocation where possible; `wrangler.pages.toml` is used with `wrangler pages deploy`.
-- Render can also serve the same two entry points from one Web Service when both hostnames are added to the Render service and saved in the routing API.
-- The optional standalone API gateway Worker uses `wrangler.worker.toml`.
-- Render runs the Express/Node API. PostgreSQL stores metadata, sessions and audit logs; R2 stores the actual binaries.
-- The Node/Express server is **not executed directly inside Workers**. The Cloudflare entry points serve static assets and forward API requests to the reachable Render backend, which remains responsible for authentication, publishing and downloads.
+- **Portal:** `dist/index.html` — public catalog containing only explicitly published releases with real artifacts.
+- **Admin:** `dist/admin.html` — private control center. Every administrative API request requires a valid Bearer session.
+- **Shared API:** `worker/api-core.ts` — runs the same API implementation in Workers and Pages Functions.
+- **Metadata and sessions:** Cloudflare D1 binding `DB`.
+- **Installers and release files:** private-by-default Cloudflare R2 bucket binding `ARTIFACTS`; downloads are streamed through the Worker only after checking that the corresponding release is published.
+- **Hostname routing:** D1 `domain_routes` plus optional hostname variables. The API stores Portal/Admin mappings. A dedicated Shared API hostname returns a service descriptor at `/` and the API under `/api/v1/*`.
 
-## 1. PostgreSQL and R2 setup
+## Choose a Cloudflare deployment target
 
-1. Create a PostgreSQL database with TLS-enabled access. A Render PostgreSQL database or an external provider can be used; review the provider's retention and backup policy. Render Free Postgres expires after 30 days and has no backups; use it only for temporary tests, not as the only production database.
-2. Create a private R2 bucket, for example `hendy-server-app-artifacts`.
-3. Create R2 S3 API credentials scoped to the required bucket. Never commit keys or expose them in `VITE_*` frontend variables.
-4. If browser direct uploads are used, configure R2 CORS for the actual Pages origin and PUT method. The multipart endpoint is limited to 50 MiB by default. Direct upload URLs expire after 15 minutes and the backend re-reads the object to calculate SHA-256 before registering metadata. See `infra/r2-cors.example.json` and replace the placeholder origin with your exact Pages origin before applying the bucket CORS policy.
+### Option A — Cloudflare Workers (recommended)
 
-## 2. Deploy the API backend on Render
+The root `wrangler.toml` deploys static assets and the API together as a single Worker:
 
-Create a Web Service from this repository. `render.yaml` defines the build/start commands and variables that must be supplied separately.
+```bash
+npm install
+npm run lint
+npm run build
+npm run db:migrate:local
+npx wrangler@4.152.0 dev --config=wrangler.toml
+```
 
-Set these values in the Render Dashboard:
+Deploy production through **GitHub → Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow → workers**. Or configure Cloudflare Workers Builds to use `npm install && npm run build` and `npx wrangler deploy` after the D1 resource ID and runtime secrets have been set.
 
-| Variable | Value |
+### Option B — Cloudflare Pages
+
+The Pages project uses `dist` as its build output. The Pages Functions under `functions/` call `worker/api-core.ts` directly and use D1/R2 bindings; there is no `BACKEND_ORIGIN` proxy.
+
+Run **GitHub → Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow → pages**. Attach the Portal, Admin and Shared hostnames to the Pages project after deployment.
+
+### Deploy both
+
+Select `both` from the same GitHub Actions workflow only when you intend to publish both a full-stack Worker and a Pages project. The API runs in each target independently but can use the same D1/R2 resources. Keep the Worker/Pages hostnames distinct or attach each hostname to only the intended target.
+
+## One-time GitHub setup
+
+Open [Settings → Secrets and variables → Actions](https://github.com/hendyngo-servers/hendy-server-app-downloader/settings/secrets/actions).
+
+Required repository **secrets**:
+
+| Name | Purpose |
 |---|---|
-| `NODE_ENV` | `production` |
-| `DATABASE_URL` | TLS-enabled PostgreSQL connection string |
-| `ADMIN_USERNAME` | A unique admin username |
-| `ADMIN_PASSWORD` | A long random password, stored as a secret |
-| `R2_ACCOUNT_ID` | Cloudflare Account ID |
-| `R2_ACCESS_KEY_ID` | R2 S3 access key |
-| `R2_SECRET_ACCESS_KEY` | R2 S3 secret key |
-| `R2_BUCKET_NAME` | R2 bucket name |
-| `MAX_UPLOAD_BYTES` | `52428800` (50 MiB multipart limit) |
-| `ADMIN_DOMAIN` | Initial admin hostname, for example `quan-tri.example.com` |
-| `PUBLIC_DOWNLOAD_DOMAIN` | Initial public hostname, for example `tai-ve.example.com` |
+| `CLOUDFLARE_API_TOKEN` | Token allowed to create D1/R2 resources, manage Worker scripts/Pages, apply migrations and set runtime secrets |
+| `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account ID |
+| `ADMIN_USERNAME` | Administrator login username |
+| `ADMIN_PASSWORD` | Long random administrator password |
 
-Set `ADMIN_PASSWORD` before the first production start. There are no default credentials in the backend. Production startup fails if PostgreSQL, R2, or admin credentials are missing.
+Optional repository **variables**:
 
-After deployment, test `https://YOUR-RENDER-SERVICE.onrender.com/healthz`. Render Free web services spin down after 15 minutes without inbound traffic, and the next request can take about one minute to start. Use Free only for hobby/preview environments, and do not rely on a Free PostgreSQL instance as the only copy of production data.
+| Name | Example | Purpose |
+|---|---|---|
+| `CLOUDFLARE_DEPLOY_ENABLED` | `true` | Enables automatic deployment after pushes to `main`; manual workflow runs work without this switch |
+| `CLOUDFLARE_TARGET` | `workers` | Automatic target: `workers`, `pages`, or `both` |
+| `ADMIN_DISPLAY_NAME` | `Hendy Administrator` | Display name after login |
+| `ADMIN_DOMAIN` | `admin.example.com` | Admin hostname only, no scheme/path |
+| `PUBLIC_DOWNLOAD_DOMAIN` | `downloads.example.com` | Portal hostname only, no scheme/path |
+| `SHARED_API_DOMAIN` | `api.example.com` | Optional dedicated Shared API hostname |
 
-## 3. Configure GitHub Actions secrets
+The deployment workflow automatically ensures the D1 database `hendy-server-app-store` and R2 bucket `hendy-server-app-artifacts` exist, updates the generated **non-secret** D1 UUID in Wrangler config, applies D1 migrations, configures Worker/Pages runtime secrets and deploys the selected target. The Cloudflare API token is only read from GitHub Secrets; it is never written into the repository. Give the token only the account-level permissions needed for D1, R2, Workers, Pages and secrets.
 
-Open the repository's **Settings → Secrets and variables → Actions**.
+The workflow may commit the generated D1 UUID back to `main`; this UUID identifies the database and is not an authentication secret. The D1 ID placeholder in a fresh checkout is replaced during the first authorized deployment. If deploying manually outside the workflow, create the database, replace `database_id` in both `wrangler.toml` and `wrangler.pages.toml`, create the R2 bucket, then run migrations.
 
-Add these **repository secrets**:
+## Database and object storage
 
-| Secret | Value |
-|---|---|
-| `CLOUDFLARE_API_TOKEN` | A newly rotated Cloudflare API token, stored only in GitHub Secrets |
-| `CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account ID |
-| `RENDER_BACKEND_ORIGIN` | The exact HTTPS origin of the deployed Render service, such as `https://your-service.onrender.com` |
+- D1 schema: `migrations/d1/0001_init.sql`.
+- R2 bucket name: `hendy-server-app-artifacts`.
+- D1 binding: `DB`.
+- R2 binding: `ARTIFACTS`.
+- Local D1 migration: `npm run db:migrate:local`.
+- Remote D1 migration: `npm run db:migrate:remote` (requires Cloudflare authentication and a real D1 UUID).
 
-`RENDER_BACKEND_ORIGIN` must be an origin only: no `/api` path, query, fragment or credentials. The workflow validates this value and securely prepares a temporary secret file which it deletes after use. It configures `BACKEND_ORIGIN` for Pages Functions, the full-stack Worker, and the standalone API gateway automatically.
+R2 S3 credentials are not used by this code path. The Worker calls the R2 binding directly; do not create or store an access-key ID or secret key for the application runtime. Keep the bucket private and apply the migration before the first production request. Uploads via the multipart API are capped at 50 MiB by default. The direct-upload ticket API currently accepts a PUT through the Worker as well, with the same configured size cap. The SHA-256 checksum is calculated from the received bytes. A checksum does not assert that an installer has been digitally code-signed.
 
-The Cloudflare API token must be scoped to the target account with permission to edit/deploy **Cloudflare Pages** and **Workers Scripts**. Never place the API token or R2 credentials in source code, chat, frontend variables or committed files.
+## Portal / Admin / Shared hostnames
 
-If deploying through Cloudflare's built-in **Workers Builds** integration, keep the build command `npm install && npm run build` and deploy command `npx wrangler deploy`. The root `wrangler.toml` now defines the `worker/index.ts` entry point and `dist/` assets. In that mode, set `BACKEND_ORIGIN` under the Worker project's Variables and Secrets. Avoid running two deployment systems against the same Worker unless you intentionally want both to publish sequentially.
+These are examples only, not preconfigured live domains:
 
-Add a **repository variable** named `CLOUDFLARE_DEPLOY_ENABLED` with exact value `true` only after the Pages project exists and the three secrets above are set. Leave it unset or set to `false` to run CI checks without deploying. The workflow can deploy on pushes to `main` and by manually selecting **Actions → Build and deploy Hendy Server App Downloader → Run workflow** on `main`.
+| Module | Example | Expected behaviour |
+|---|---|---|
+| Portal | `downloads.example.com` | Public Store UI |
+| Admin | `admin.example.com` | Admin Control Center; sign-in required |
+| Shared API | `api.example.com` | JSON service descriptor at `/`, health at `/healthz`, API under `/api/v1/*` |
 
-## 4. Deploy Cloudflare Workers or Pages
+Host routing maps the Portal and Admin UI to distinct HTML entries. The Shared hostname is configured with `SHARED_API_DOMAIN`; it is intentionally not a third React interface. A hostname by itself is not an authorization boundary — administrative endpoints still check the session token.
 
-1. Build both standalone web entry points with `npm install && npm run build`. The output contains `dist/index.html` for Public Store and `dist/admin.html` for Admin Control Center.
-2. **Workers:** keep build command `npm install && npm run build` and deploy command `npx wrangler deploy`. The root `wrangler.toml` routes all paths through the host-aware Worker before passing static files to the Assets binding. Set `BACKEND_ORIGIN` in Worker Variables and Secrets.
-3. **Pages:** use output directory `dist`, the Pages Functions in `functions/`, and `wrangler.pages.toml`. Add both custom domains to the same Pages project. The catch-all Function asks the backend routing API which entry point to serve.
-4. Save the exact hostnames in Render variables or the authenticated Admin Control Center → API & tên miền panel. Then add each hostname as a custom domain to the Pages project, Worker, or Render service serving the frontend. Point DNS to the hosting provider's recommended target and wait for its TLS status to become active.
-5. The routing API is `GET /api/v1/public/domain-routes`, `GET /api/v1/public/domain-route?host=...`, and authenticated `GET/PUT /api/v1/admin/domain-routes`. Only the admin route API requires a Bearer token. The API saves which entry point belongs to each hostname; **it does not create DNS records or custom-domain/TLS attachments**. Those remain provider-side setup steps.
-6. Once the GitHub secrets and `CLOUDFLARE_DEPLOY_ENABLED=true` variable are ready, GitHub Actions may deploy the Worker/Pages project and standalone API gateway. Check `/healthz` and `/api/v1/public/apps`; the Render backend must be reachable and its PostgreSQL, R2, and admin credentials must be configured.
+**DNS/custom domain attachment and TLS are provider-side actions.** After deployment, open the Cloudflare Worker or Pages project, attach the appropriate custom hostnames, and follow the DNS/TLS setup prompts in the Cloudflare Dashboard. The workflow deploys code and provisions D1/R2, but does not automatically claim or configure domains that are not attached to the project.
 
-Do not commit Wrangler configs containing database IDs, R2 secrets, admin passwords or API tokens. The two public config files declare the deployment shape only.
+## API endpoints
 
-## 5. Releases and artifacts
+- `GET /healthz`
+- `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`
+- `GET /api/v1/public/apps`, `GET /api/v1/public/manifest.json`
+- `GET /api/v1/public/domain-routes`, `GET /api/v1/public/domain-route?host=...`
+- `GET/PUT /api/v1/admin/domain-routes` (Bearer authentication required)
+- `GET /api/v1/admin/projects`, `PUT /api/v1/admin/projects/:id`, `PATCH /api/v1/admin/projects/:id/files/:fileId`
+- `POST /api/v1/admin/upload-artifact`, `POST /api/v1/admin/artifact-upload-url`, `PUT /api/v1/admin/artifact-upload/:ticketId`, `POST /api/v1/admin/register-artifact`
+- `GET /api/v1/downloads/artifacts/:filename` (only published release artifacts are downloadable)
 
-- Multipart upload: `POST /api/v1/admin/upload-artifact` with a Bearer token and form fields `file`, `projectSlug`, `version`, `platform`, `format` and `arch`. The maximum is controlled by `MAX_UPLOAD_BYTES`.
-- Large packages: call `POST /api/v1/admin/artifact-upload-url` with JSON metadata, PUT the raw bytes to `uploadUrl`, then call `POST /api/v1/admin/register-artifact` with `ticketId`. The ticket is bound to the creating admin session and expires after 15 minutes.
-- Upload creates or updates a draft; it does not automatically publish a release. The public portal shows a release only when `published` is true and actual stored artifacts exist.
-- SHA-256 is calculated from uploaded/stored bytes. The verified flag means the checksum was computed on the server; it does not assert that an executable has a vendor code signature. The backend does not fabricate `signatureInfo` values.
-- Project edits persist through `PUT /api/v1/admin/projects/:id`. Admin endpoints require an unexpired Bearer session. Login attempts are rate-limited, random tokens are issued, and only token hashes are stored in PostgreSQL.
+## CI, tests and releases
 
-## 6. Smoke checks
+Pull requests and pushes to `main` run type-checking, the separate-entry frontend check, local D1/R2 Worker API smoke tests and Wrangler dry-runs through `.github/workflows/ci-deploy.yml`. Production deployment is managed solely by `.github/workflows/deploy-cloudflare.yml`.
 
-Run locally:
+The release workflow `.github/workflows/build-and-publish-release.yml` packages the source and web build. Windows installers and Android APKs are included only when real packages are supplied under `release-assets/windows/` or `release-assets/android/`; this repository does not manufacture native installers without a native build project.
 
-    npm install
-    npm run lint
-    npm run test:api
-    npm run build
+## Security checklist
 
-Check after deployment:
-
-    curl -i https://YOUR-RENDER-SERVICE.onrender.com/healthz
-    curl -i https://YOUR-RENDER-SERVICE.onrender.com/api/v1/public/apps
-    curl -i https://hendy-server-app-downloader.pages.dev/api/v1/public/apps
-    curl -i 'https://hendy-server-app-downloader.pages.dev/api/v1/public/domain-routes'
-    curl -i 'https://hendy-server-app-downloader.pages.dev/api/v1/public/domain-route?host=tai-ve.example.com'
-
-An unauthenticated request to `/api/v1/admin/projects` must return 401. The public apps endpoint only returns applications with published releases and real uploaded artifacts.
-
-## Limitations and notes
-
-- Do not store important data or binary packages on Render web-service disk; it is not a durable storage layer.
-- Cloudflare Pages Functions and the standalone Worker are gateways, not a migration of the Express API. Running the full API solely on Workers requires a separate adapter using Workers-compatible storage bindings and a data migration.
-- The repository does not manufacture real application installers. Only real binaries uploaded by an administrator can become release artifacts.
+- Use new, unique administrator credentials; store them only in GitHub Secrets/Cloudflare secrets.
+- If a password previously committed to a sample environment file was ever used, rotate it.
+- Rotate any previously exposed Cloudflare API token before deploying.
+- Never put passwords or API tokens into `wrangler.toml`, source files or client-side `VITE_*` variables.
+- Admin APIs require an unexpired Bearer session. Public routes expose published release metadata only.
+- Verify custom-domain TLS and review backup/export needs for D1/R2 before relying on the service for production data.

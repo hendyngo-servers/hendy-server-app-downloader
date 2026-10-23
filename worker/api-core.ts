@@ -219,8 +219,10 @@ function validateUploadInput(body: Record<string, unknown>): UploadInput | null 
   return { projectSlug, version, originalFilename, platform, format, arch };
 }
 async function sha256Hex(bytes: ArrayBuffer | Uint8Array): Promise<string> {
-  const input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", input);
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const input = new Uint8Array(view.byteLength);
+  input.set(view);
+  const digest = await crypto.subtle.digest("SHA-256", input.buffer);
   return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");
 }
 function randomToken(size = 32): string {
@@ -365,9 +367,12 @@ async function handleDirectUpload(request: Request, env: CloudflareEnv, ticketId
   const ticket = await getTicket(env, ticketId);
   if (!ticket || ticket.username !== session.username || ticket.expiresAt <= Date.now()) return failure("Phiếu tải lên đã hết hạn hoặc không hợp lệ.", 400, "INVALID_UPLOAD_TICKET");
   if (request.method !== "PUT") return failure("Phương thức không được hỗ trợ.", 405, "METHOD_NOT_ALLOWED");
-  const bytes = await request.arrayBuffer();
   const maxBytes = Number(env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024);
+  const declaredBytes = Number(request.headers.get("Content-Length") || 0);
+  if (declaredBytes > maxBytes) return failure("Tệp vượt giới hạn tải lên hiện tại.", 413, "UPLOAD_TOO_LARGE");
+  const bytes = await request.arrayBuffer();
   if (bytes.byteLength <= 0 || bytes.byteLength > maxBytes) return failure("Tệp rỗng hoặc vượt giới hạn tải lên hiện tại.", 413, "UPLOAD_TOO_LARGE");
+  if (declaredBytes > 0 && declaredBytes !== bytes.byteLength) return failure("Kích thước tệp không khớp.", 400, "ARTIFACT_SIZE_MISMATCH");
   await bucketFor(env).put(ticket.objectKey, bytes, { httpMetadata: { contentType: contentTypeFor(ticket.filename) } });
   await dbFor(env).prepare("UPDATE upload_tickets SET uploaded = 1, size_bytes = ? WHERE id = ?").bind(bytes.byteLength, ticket.id).run();
   return jsonResponse({ success: true, uploaded: true, sizeBytes: bytes.byteLength });
@@ -534,14 +539,15 @@ export async function dispatchApi(request: Request, env: CloudflareEnv): Promise
         const projectId = decodeURIComponent(filePatch[1]);
         const fileId = decodeURIComponent(filePatch[2]);
         const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-        if (typeof body.content !== "string") return failure("Nội dung tệp không hợp lệ.", 400);
+        const content = body.content;
+        if (typeof content !== "string") return failure("Nội dung tệp không hợp lệ.", 400);
         const project = await getProjectById(env, projectId);
         if (!project) return failure("Không tìm thấy dự án.", 404);
         let found = false;
         project.files = project.files.map(file => {
           if (file.id !== fileId) return file;
           found = true;
-          return { ...file, content: body.content };
+          return { ...file, content };
         });
         if (!found) return failure("Không tìm thấy tệp nguồn.", 404);
         await saveProject(env, project);
