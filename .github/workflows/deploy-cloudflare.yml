@@ -3,6 +3,9 @@ name: Deploy Hendy Server App Store to Cloudflare
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - wrangler.toml
+      - wrangler.pages.toml
   workflow_dispatch:
     inputs:
       target:
@@ -93,7 +96,7 @@ jobs:
         if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
         run: npx --yes wrangler@4.152.0 pages deploy dist --project-name=hendy-server-app-downloader --branch=main --config=wrangler.pages.toml
       - name: Persist generated non-secret D1 ID in repository
-        if: always() && github.event_name == 'workflow_dispatch' && success()
+        if: success()
         shell: bash
         run: |
           set -euo pipefail
