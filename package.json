@@ -4,13 +4,17 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "npm run build && npx wrangler@4.152.0 d1 migrations apply hendy-server-app-store --local --config=wrangler.toml && npx wrangler@4.152.0 dev --config=wrangler.toml",
     "build": "vite build",
-    "start": "tsx server.ts",
-    "preview": "vite preview",
+    "start": "npx wrangler@4.152.0 dev --config=wrangler.toml",
+    "preview": "npx wrangler@4.152.0 dev --config=wrangler.toml",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test:api": "node scripts/api-smoke-test.mjs"
+    "test:api": "node scripts/api-smoke-test.mjs",
+    "db:migrate:local": "npx wrangler@4.152.0 d1 migrations apply hendy-server-app-store --local --config=wrangler.toml",
+    "db:migrate:remote": "npx wrangler@4.152.0 d1 migrations apply hendy-server-app-store --remote --config=wrangler.toml",
+    "deploy:workers": "npx wrangler@4.152.0 deploy --config=wrangler.toml",
+    "deploy:pages": "npm run build && npx wrangler@4.152.0 pages deploy dist --project-name=hendy-server-app-downloader --config=wrangler.pages.toml"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
