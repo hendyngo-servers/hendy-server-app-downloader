@@ -12,6 +12,7 @@ import {
 } from '../../utils/packaging.ts';
 import { WebSandboxModal } from './WebSandboxModal.tsx';
 import { AppDetailModal } from './AppDetailModal.tsx';
+import { IntegrityModal } from '../../client/shared/IntegrityModal.tsx';
 
 interface DownloadPortalViewProps {
   project: ProjectTemplate;
@@ -99,75 +100,12 @@ export const DownloadPortalView: React.FC<DownloadPortalViewProps> = ({
         />
       )}
 
-      {/* Modal Kiểm tra mã băm SHA-256 & Chữ ký số */}
-      {showChecksumModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-white">Kiểm Tra Tính Toàn Vẹn & Ký Số Thương Mại</h3>
-              <button
-                onClick={() => setShowChecksumModal(null)}
-                className="text-slate-400 hover:text-white font-mono text-lg"
-              >
-                ×
-              </button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div>
-                <span className="text-slate-500 block mb-0.5">Tên Tệp Gói Phát Hành:</span>
-                <span className="font-mono text-white font-semibold">{showChecksumModal.filename}</span>
-              </div>
-              {showChecksumModal.signatureInfo && (
-                <div className="p-2.5 bg-slate-950 border border-emerald-900/50 rounded-lg space-y-1">
-                  <div className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                    <span>✔</span>
-                    <span>Chứng Chỉ Ký Số EV: Đã Xác Thực Tính Hợp Lệ</span>
-                  </div>
-                  <div className="text-slate-400 text-[11px]">Đơn vị phát hành: {showChecksumModal.signatureInfo.issuer}</div>
-                  <div className="text-slate-400 text-[11px]">Số sê-ri: {showChecksumModal.signatureInfo.serialNumber}</div>
-                </div>
-              )}
-              <div>
-                <span className="text-slate-500 block mb-0.5">Mã Băm SHA-256 (Tính từ Byte Thực Tế):</span>
-                <div className="bg-slate-950 p-2.5 rounded-lg font-mono text-[11px] text-emerald-400 break-all select-all border border-slate-800">
-                  {showChecksumModal.sha256}
-                </div>
-              </div>
-              <div>
-                <span className="text-slate-500 block mb-0.5">URL Tải Thực Tế:</span>
-                <div className="bg-slate-950 p-2.5 rounded-lg font-mono text-[11px] text-indigo-300 break-all select-all border border-slate-800">
-                  {getArtifactUrl(showChecksumModal)}
-                </div>
-              </div>
-              <div>
-                <span className="text-slate-500 block mb-0.5">Lệnh Xác Minh Thiết Bị:</span>
-                <div className="bg-slate-950 p-2.5 rounded-lg font-mono text-[11px] text-slate-300 border border-slate-800">
-                  sha256sum {showChecksumModal.filename}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between items-center pt-2">
-              <a
-                href={getArtifactUrl(showChecksumModal)}
-                download={showChecksumModal.filename}
-                className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium"
-              >
-                Tải tệp này ngay ⬇
-              </a>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(showChecksumModal.sha256);
-                  onNotify('Đã sao chép mã băm SHA-256 vào khay nhớ tạm!');
-                  setShowChecksumModal(null);
-                }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors"
-              >
-                Sao Chép Mã Băm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <IntegrityModal
+        artifact={showChecksumModal}
+        downloadUrl={showChecksumModal ? getArtifactUrl(showChecksumModal) : ''}
+        onClose={() => setShowChecksumModal(null)}
+        onNotify={onNotify}
+      />
 
       {/* Hero Spotlight: Thiết kế theo Google Play Store & Apple App Store */}
       <section className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-950 to-slate-950 px-6 pt-10 pb-14">

@@ -4,13 +4,10 @@
  */
 import React, { useEffect, useState } from 'react';
 import type { CloudflareWorkersPagesConfig, DomainRouteSetting } from '../../types/index.ts';
+import { loadAdminDomainRoutes, saveAdminDomainRoutes, normalizeHostname } from '../../client/shared/store.ts';
+import type { DomainRouteRecord } from '../../client/shared/types.ts';
 
-interface ApiRoute {
-  hostname: string;
-  targetView: 'admin' | 'downloads';
-  enabled: boolean;
-  updatedAt?: string;
-}
+type ApiRoute = DomainRouteRecord;
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -19,7 +16,7 @@ interface Props {
   onNotify: (message: string) => void;
   adminToken: string;
 }
-const cleanHost = (value: string) => value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+const cleanHost = (value: string) => normalizeHostname(value);
 const hostPattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/;
 
 export const DomainConfigPanel: React.FC<Props> = ({ isOpen, onClose, config, onUpdateConfig, onNotify, adminToken }) => {
@@ -38,11 +35,7 @@ export const DomainConfigPanel: React.FC<Props> = ({ isOpen, onClose, config, on
       setError('');
       setNotice('');
       try {
-        const response = await fetch('/api/v1/admin/domain-routes', {
-          headers: { Authorization: `Bearer ${adminToken}`, Accept: 'application/json' }
-        });
-        const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || `Không tải được cấu hình (HTTP ${response.status}).`);
+        const data = await loadAdminDomainRoutes(adminToken);
         const routes = (data.routes || []) as ApiRoute[];
         if (!cancelled) {
           setAdminDomain(routes.find(route => route.targetView === 'admin')?.hostname || '');
@@ -76,17 +69,7 @@ export const DomainConfigPanel: React.FC<Props> = ({ isOpen, onClose, config, on
     }
     setSaving(true);
     try {
-      const response = await fetch('/api/v1/admin/domain-routes', {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify({ adminDomain: adminHost, publicDomain: storeHost })
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || `Lưu thất bại (HTTP ${response.status}).`);
+      const data = await saveAdminDomainRoutes(adminToken, { adminDomain: adminHost, publicDomain: storeHost });
       const routes = (data.routes || []) as ApiRoute[];
       const toSetting = (route: ApiRoute, index: number): DomainRouteSetting => {
         const pieces = route.hostname.split('.');

@@ -1,0 +1,71 @@
+/* Hendy Tools Public Store — Midnight Aerodynamic */
+.hendy-header-store {
+  color: #e7edf7 !important;
+  background: rgba(7, 13, 25, .96) !important;
+  border-color: #23314a !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,.16) !important;
+}
+.hendy-header-store .hendy-brand-mark {
+  background: linear-gradient(135deg,#9bf7dc,#37d7b0);
+  box-shadow: 0 0 28px rgba(54,223,178,.18);
+}
+.hendy-header-store .hendy-brand-copy small { color:#7e91ad; opacity:1; }
+.hendy-store-nav-link { color:#9baac2 !important; }
+.hendy-store-nav-link:hover { color:#fff !important; background:#131f33 !important; }
+.hendy-store-nav-link.active { color:#93f0cf !important; background:#102b2a !important; }
+.hendy-header-store .hendy-os-pill { color:#c3d3e7; background:#0c192a; border-color:#263750; }
+.hendy-header-store .hendy-admin-entry { color:#aab8ce; }
+.hendy-header-store .hendy-admin-entry:hover { color:#93f0cf; background:#102b2a; }
+
+.download-portal-v2 {
+  color:#dce6f5 !important;
+  background:#070d18 !important;
+  background-image:radial-gradient(ellipse at 50% -15%,rgba(42,117,130,.22),transparent 55%) !important;
+}
+.download-portal-v2 > section:first-of-type {
+  background:linear-gradient(180deg,rgba(12,25,42,.98),rgba(7,13,24,.98)) !important;
+  border-color:#22344b !important;
+}
+.download-portal-v2 > section:first-of-type .bg-slate-900\/60,
+.download-portal-v2 > section:first-of-type .bg-slate-900\/90,
+.download-portal-v2 > section:first-of-type .bg-slate-950 {
+  background-color:#0a1423 !important;
+}
+.download-portal-v2 > section:first-of-type .border-slate-800,
+.download-portal-v2 > section:first-of-type .border-slate-800\/80,
+.download-portal-v2 > section:first-of-type .border-slate-700 {
+  border-color:#253750 !important;
+}
+.download-portal-v2 > section:first-of-type .text-white { color:#edf5ff !important; }
+.download-portal-v2 > section:first-of-type .text-slate-300 { color:#b5c4d8 !important; }
+.download-portal-v2 > section:first-of-type .text-slate-400 { color:#8b9cb5 !important; }
+.download-portal-v2 > section:first-of-type .text-slate-500 { color:#72849e !important; }
+.download-portal-v2 > section:first-of-type input {
+  color:#ecf5ff !important; background:#080f1c !important; border-color:#2b3b54 !important;
+}
+.download-portal-v2 > section:first-of-type .bg-slate-900\/90.rounded-lg,
+.download-portal-v2 > section:first-of-type .bg-slate-900\/60.rounded-3xl {
+  box-shadow:0 24px 70px rgba(0,0,0,.18);
+}
+.download-portal-v2 > div:not(.fixed) { border-color:#24344b; }
+.download-portal-v2 > div:not(.fixed) .bg-slate-900\/40 { background:#0a1422 !important; }
+.download-portal-v2 > div:not(.fixed) .text-white { color:#eaf2fc !important; }
+.download-portal-v2 > div:not(.fixed) .text-slate-400 { color:#8ea0b8 !important; }
+.download-portal-v2 > div:not(.fixed) .text-slate-500 { color:#71849e !important; }
+.download-portal-v2 > div:not(.fixed) .border-slate-800,
+.download-portal-v2 > div:not(.fixed) .border-slate-800\/80 { border-color:#22334b !important; }
+.download-portal-v2 > div:not(.fixed) .bg-slate-900\/50 {
+  background:linear-gradient(145deg,#101d2e,#0a1422) !important;
+  box-shadow:0 16px 42px rgba(0,0,0,.16);
+}
+.download-portal-v2 > div:not(.fixed) .bg-slate-900\/50:hover {
+  background:linear-gradient(145deg,#14243a,#0c192a) !important;
+  border-color:#34536c !important;
+}
+.download-portal-v2 > div:not(.fixed) .bg-slate-950 { background:#080f1b !important; }
+
+.hendy-app-store { background:#070d18 !important; color:#e7edf7 !important; }
+.hendy-app-store > main { background:#070d18 !important; }
+@media (prefers-reduced-motion: reduce) {
+  .download-portal-v2 *, .hendy-header-store * { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+}
