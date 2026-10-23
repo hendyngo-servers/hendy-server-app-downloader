@@ -89,7 +89,7 @@ function cleanVersion(value: string): string {
   return String(value || "").trim().replace(/^v/i, "").replace(/[^0-9a-zA-Z.+_-]/g, "").slice(0, 60);
 }
 function normalizeHostname(value: unknown): string | null {
-  const input = String(value || "").trim().toLowerCase().replace(/^https?:\\/\\//, "").split(/[/?#]/, 1)[0].replace(/\\.$/, "");
+  const input = String(value || "").trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/, 1)[0].replace(/\.$/, "");
   if (!input || input.length > 253 || input.includes(":") || input.includes("*")) return null;
   const labels = input.split(".");
   if (labels.some(label => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
@@ -996,11 +996,45 @@ async function startServer(): Promise<void> {
   }
 
   if (!IS_PRODUCTION) {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "mpa" });
     app.use(vite.middlewares);
   } else {
+    // Prevent a direct /admin.html request from exposing the admin application on a public hostname.
+    app.use(async (req, res, next) => {
+      if (req.path !== "/admin.html" && req.path !== "/index.html") return next();
+      try {
+        const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+        const hostValue = forwardedHost || req.get("host") || req.hostname;
+        const hostname = normalizeHostname(hostValue);
+        const route = hostname ? (await listDomainRoutes()).find(item => item.hostname === hostname && item.enabled) : undefined;
+        if (req.path === "/admin.html" && route?.targetView !== "admin") {
+          res.status(404).type("text/plain").send("Not Found");
+          return;
+        }
+        if (req.path === "/index.html" && route?.targetView === "admin") {
+          res.redirect(302, "/");
+          return;
+        }
+        next();
+      } catch (error) { next(error); }
+    });
     app.use(express.static(path.resolve(ROOT, "dist"), { index: false, maxAge: "1h" }));
-    app.get("*", (_req, res) => res.sendFile(path.resolve(ROOT, "dist", "index.html")));
+    app.get("*", async (req, res, next) => {
+      try {
+        const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+        const hostValue = forwardedHost || req.get("host") || req.hostname;
+        const hostname = normalizeHostname(hostValue);
+        const route = hostname ? (await listDomainRoutes()).find(item => item.hostname === hostname && item.enabled) : undefined;
+        const isAdminHost = route?.targetView === "admin";
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+        if (isAdminHost) {
+          res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+          res.setHeader("Cache-Control", "no-store");
+        }
+        res.sendFile(path.resolve(ROOT, "dist", isAdminHost ? "admin.html" : "index.html"));
+      } catch (error) { next(error); }
+    });
   }
 
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
