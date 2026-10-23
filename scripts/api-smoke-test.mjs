@@ -81,6 +81,38 @@ async function main() {
   assert(publicApps.response.ok && Array.isArray(publicApps.data.apps) && publicApps.data.apps.length === 0,
     "Public portal must not expose sample projects as published downloadable apps.");
 
+  const publicRoutes = await jsonRequest("/api/v1/public/domain-routes");
+  assert(publicRoutes.response.ok && publicRoutes.data.success && Array.isArray(publicRoutes.data.routes),
+    "Public domain route list must return a safe route array.");
+
+  const resolvedPublic = await jsonRequest("/api/v1/public/domain-route?host=store.example.test");
+  assert(resolvedPublic.response.ok && resolvedPublic.data.targetView === "downloads",
+    "Unknown domains must resolve to the public entry point by default.");
+
+  const protectedDomainRoutes = await jsonRequest("/api/v1/admin/domain-routes");
+  assert(protectedDomainRoutes.response.status === 401,
+    "Admin domain route settings must require a bearer token.");
+
+  const saveRoutes = await jsonRequest("/api/v1/admin/domain-routes", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ adminDomain: "admin.example.test", publicDomain: "store.example.test" })
+  });
+  assert(saveRoutes.response.ok && saveRoutes.data.success && saveRoutes.data.routes.length === 2,
+    "Authenticated admins must be able to persist two distinct host routes.");
+
+  const resolveAdmin = await jsonRequest("/api/v1/public/domain-route?host=admin.example.test");
+  assert(resolveAdmin.response.ok && resolveAdmin.data.targetView === "admin",
+    "The hostname resolver must select the admin entry for its configured hostname.");
+
+  const duplicateRoutes = await jsonRequest("/api/v1/admin/domain-routes", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ adminDomain: "same.example.test", publicDomain: "same.example.test" })
+  });
+  assert(duplicateRoutes.response.status === 400,
+    "Admin and public routes must reject duplicate hostnames.");
+
   const logout = await jsonRequest("/api/v1/auth/logout", {
     method: "POST",
     headers: { Authorization: "Bearer " + token }
@@ -92,7 +124,7 @@ async function main() {
   });
   assert(expired.response.status === 401, "A logged-out token must no longer authenticate.");
 
-  console.log("API smoke tests passed: health, protected route, invalid login, valid login, admin projects, public sample-release filtering, logout revocation.");
+  console.log("API smoke tests passed: health, auth, public release filtering, authenticated domain-route save, duplicate-host validation, hostname resolution, logout revocation.");
 }
 
 try {

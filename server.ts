@@ -50,7 +50,15 @@ const localProjects = new Map<string, ProjectTemplate>();
 const localArtifacts = new Map<string, { data: StoredArtifact; bytes: Buffer }>();
 const localSessions = new Map<string, StoredSession>();
 const localUploadTickets = new Map<string, UploadTicket>();
+const localDomainRoutes = new Map<string, DomainRouteRecord>();
 
+type DomainTargetView = "admin" | "downloads";
+interface DomainRouteRecord {
+  hostname: string;
+  targetView: DomainTargetView;
+  enabled: boolean;
+  updatedAt: string;
+}
 interface StoredSession { username: string; name: string; expiresAt: number; }
 interface StoredArtifact extends BuildArtifact {
   slug: string; version: string; objectKey: string; contentType: string;
@@ -79,6 +87,77 @@ function cleanSlug(value: string): string {
 }
 function cleanVersion(value: string): string {
   return String(value || "").trim().replace(/^v/i, "").replace(/[^0-9a-zA-Z.+_-]/g, "").slice(0, 60);
+}
+function normalizeHostname(value: unknown): string | null {
+  const input = String(value || "").trim().toLowerCase().replace(/^https?:\/\//, "").split(/[/?#]/, 1)[0].replace(/\.$/, "");
+  if (!input || input.length > 253 || input.includes(":") || input.includes("*")) return null;
+  const labels = input.split(".");
+  if (labels.some(label => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return null;
+  return input;
+}
+function hostnameFromEnv(name: string): string | null {
+  const value = process.env[name];
+  return value ? normalizeHostname(value) : null;
+}
+function envDomainRoutes(): DomainRouteRecord[] {
+  const now = new Date().toISOString();
+  const routes: DomainRouteRecord[] = [];
+  const admin = hostnameFromEnv("ADMIN_DOMAIN");
+  const store = hostnameFromEnv("PUBLIC_DOWNLOAD_DOMAIN") || hostnameFromEnv("PUBLIC_STORE_DOMAIN");
+  if (admin) routes.push({ hostname: admin, targetView: "admin", enabled: true, updatedAt: now });
+  if (store && store !== admin) routes.push({ hostname: store, targetView: "downloads", enabled: true, updatedAt: now });
+  return routes;
+}
+async function listDomainRoutes(): Promise<DomainRouteRecord[]> {
+  let routes: DomainRouteRecord[] = [];
+  if (pool) {
+    const result = await pool.query(
+      "SELECT hostname, target_view, enabled, updated_at FROM domain_routes ORDER BY target_view ASC"
+    );
+    routes = result.rows.map(row => ({
+      hostname: String(row.hostname),
+      targetView: row.target_view as DomainTargetView,
+      enabled: Boolean(row.enabled),
+      updatedAt: new Date(row.updated_at).toISOString()
+    }));
+  } else {
+    routes = [...localDomainRoutes.values()];
+  }
+  // Environment variables allow first-time bootstrap before a route is created through the API.
+  for (const fallback of envDomainRoutes()) {
+    if (!routes.some(route => route.hostname === fallback.hostname || route.targetView === fallback.targetView)) routes.push(fallback);
+  }
+  return routes;
+}
+async function saveDomainRoutes(adminHostname: string, publicHostname: string, username: string): Promise<DomainRouteRecord[]> {
+  const now = new Date().toISOString();
+  const routes: DomainRouteRecord[] = [
+    { hostname: adminHostname, targetView: "admin", enabled: true, updatedAt: now },
+    { hostname: publicHostname, targetView: "downloads", enabled: true, updatedAt: now }
+  ];
+  if (pool) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM domain_routes");
+      for (const route of routes) {
+        await client.query(
+          "INSERT INTO domain_routes (hostname, target_view, enabled, updated_by) VALUES ($1, $2, $3, $4)",
+          [route.hostname, route.targetView, route.enabled, username]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  } else {
+    localDomainRoutes.clear();
+    for (const route of routes) localDomainRoutes.set(route.hostname, route);
+  }
+  return routes;
 }
 function jsonValue<T>(value: unknown): T {
   return (typeof value === "string" ? JSON.parse(value) : value) as T;
@@ -151,9 +230,18 @@ async function ensureSchema(): Promise<void> {
     "CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, name TEXT NOT NULL, expires_at BIGINT NOT NULL, created_at BIGINT NOT NULL)",
     "CREATE INDEX IF NOT EXISTS admin_sessions_expiry_idx ON admin_sessions (expires_at)",
     "CREATE TABLE IF NOT EXISTS upload_tickets (id TEXT PRIMARY KEY, username TEXT NOT NULL, slug TEXT NOT NULL, version TEXT NOT NULL, filename TEXT NOT NULL, object_key TEXT NOT NULL UNIQUE, platform TEXT NOT NULL, format TEXT NOT NULL, arch TEXT NOT NULL, expires_at BIGINT NOT NULL)",
-    "CREATE TABLE IF NOT EXISTS audit_logs (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, action TEXT NOT NULL, details JSONB NOT NULL DEFAULT '{}'::jsonb, ip_address TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+    "CREATE TABLE IF NOT EXISTS audit_logs (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, action TEXT NOT NULL, details JSONB NOT NULL DEFAULT '{}'::jsonb, ip_address TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
+    "CREATE TABLE IF NOT EXISTS domain_routes (hostname TEXT PRIMARY KEY, target_view TEXT NOT NULL CHECK (target_view IN ('admin','downloads')), enabled BOOLEAN NOT NULL DEFAULT TRUE, updated_by TEXT NOT NULL DEFAULT 'system', updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
+    "CREATE INDEX IF NOT EXISTS domain_routes_view_idx ON domain_routes (target_view, enabled)"
   ].join(";\n");
   await pool.query(schema);
+  // Seed configured hostnames once; existing API-saved mappings are never overwritten.
+  for (const route of envDomainRoutes()) {
+    await pool.query(
+      "INSERT INTO domain_routes (hostname, target_view, enabled, updated_by) VALUES ($1, $2, TRUE, 'environment') ON CONFLICT (hostname) DO NOTHING",
+      [route.hostname, route.targetView]
+    );
+  }
   const countResult = await pool.query("SELECT COUNT(*)::int AS count FROM apps");
   if (Number(countResult.rows[0].count) === 0) {
     for (const sample of SAMPLE_PROJECTS) {
@@ -799,25 +887,91 @@ app.get("/api/v1/admin/audit-logs", requireAdminAuth, async (_req, res, next) =>
     res.json({ success: true, logs: result.rows });
   } catch (error) { next(error); }
 });
-app.get("/api/v1/domains", (_req, res) => {
-  const adminDomain = process.env.ADMIN_DOMAIN || "";
-  const downloadsDomain = process.env.PUBLIC_DOWNLOAD_DOMAIN || "";
-  res.json({ success: true, routes: [
-    {
-      id: "route-admin", subdomain: adminDomain ? adminDomain.split(".")[0] : "admin",
-      domain: adminDomain.split(".").slice(1).join(".") || "", targetView: "studio",
-      purpose: "Giao diện quản trị, yêu cầu đăng nhập ở API máy chủ",
-      dnsType: "CNAME", dnsTarget: "", status: adminDomain ? "pending" : "provisioning",
-      sslStatus: "provisioning", accessControl: "Internal Token Auth", apiManaged: false
-    },
-    {
-      id: "route-downloads", subdomain: downloadsDomain ? downloadsDomain.split(".")[0] : "downloads",
-      domain: downloadsDomain.split(".").slice(1).join(".") || "", targetView: "downloads",
-      purpose: "Cổng tải công khai chỉ hiển thị bản phát hành đã xuất bản và có artifact thật",
-      dnsType: "CNAME", dnsTarget: "", status: downloadsDomain ? "pending" : "provisioning",
-      sslStatus: "provisioning", accessControl: "Public Edge CDN", apiManaged: false
+app.get("/api/v1/admin/domain-routes", requireAdminAuth, async (_req, res, next) => {
+  try {
+    res.json({ success: true, routes: await listDomainRoutes() });
+  } catch (error) { next(error); }
+});
+
+app.put("/api/v1/admin/domain-routes", requireAdminAuth, async (req, res, next) => {
+  try {
+    const adminDomain = normalizeHostname(req.body?.adminDomain);
+    const publicDomain = normalizeHostname(req.body?.publicDomain);
+    if (!adminDomain || !publicDomain) {
+      res.status(400).json({ success: false, code: "INVALID_HOSTNAME", error: "Mỗi hostname phải là một tên miền hợp lệ, không chứa scheme, đường dẫn, wildcard hoặc port." });
+      return;
     }
-  ] });
+    if (adminDomain === publicDomain) {
+      res.status(400).json({ success: false, code: "DUPLICATE_HOSTNAME", error: "Hostname quản trị và Public Store phải khác nhau." });
+      return;
+    }
+    const session = (req as Request & { adminSession?: StoredSession }).adminSession;
+    const routes = await saveDomainRoutes(adminDomain, publicDomain, session?.username || "admin");
+    await audit(session?.username || "admin", "domain.routes.update", { adminDomain, publicDomain }, req);
+    res.json({
+      success: true,
+      routes,
+      note: "Định tuyến đã lưu trong API. DNS, custom-domain attachment và TLS phải được cấu hình riêng tại nền tảng hosting."
+    });
+  } catch (error) { next(error); }
+});
+
+// Public route list includes hostnames only so both UI shells can link to the other configured host.
+app.get("/api/v1/public/domain-routes", async (_req, res, next) => {
+  try {
+    const routes = (await listDomainRoutes()).filter(route => route.enabled);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ success: true, routes });
+  } catch (error) { next(error); }
+});
+
+// Edge router asks the backend which entry point belongs to the requested hostname.
+app.get("/api/v1/public/domain-route", async (req, res, next) => {
+  try {
+    const hostname = normalizeHostname(req.query.host || req.hostname);
+    if (!hostname) {
+      res.status(400).json({ success: false, code: "INVALID_HOSTNAME", error: "Hostname không hợp lệ." });
+      return;
+    }
+    const route = (await listDomainRoutes()).find(item => item.hostname === hostname && item.enabled);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      success: true,
+      hostname,
+      targetView: route?.targetView || "downloads",
+      configured: Boolean(route),
+      enabled: route?.enabled ?? true
+    });
+  } catch (error) { next(error); }
+});
+
+// Compatibility endpoint for the existing deployment console; this now reads persisted routing.
+app.get("/api/v1/domains", async (_req, res, next) => {
+  try {
+    const routes = await listDomainRoutes();
+    res.json({
+      success: true,
+      routes: routes.map(route => {
+        const labels = route.hostname.split(".");
+        return {
+          id: route.targetView === "admin" ? "route-admin" : "route-downloads",
+          hostname: route.hostname,
+          subdomain: labels.length > 1 ? labels[0] : route.hostname,
+          domain: labels.length > 1 ? labels.slice(1).join(".") : "",
+          targetView: route.targetView === "admin" ? "studio" : "downloads",
+          purpose: route.targetView === "admin" ? "Admin Control Center; authentication required." : "Public Store; published releases only.",
+          dnsType: "CNAME",
+          dnsTarget: "",
+          status: "pending",
+          sslStatus: "provisioning",
+          accessControl: route.targetView === "admin" ? "Internal Token Auth" : "Public Edge CDN",
+          apiManaged: true,
+          enabled: route.enabled,
+          updatedAt: route.updatedAt
+        };
+      })
+    });
+  } catch (error) { next(error); }
 });
 
 app.use("/api", (_req, res) => res.status(404).json({ success: false, error: "API endpoint không tồn tại." }));
@@ -842,11 +996,45 @@ async function startServer(): Promise<void> {
   }
 
   if (!IS_PRODUCTION) {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "mpa" });
     app.use(vite.middlewares);
   } else {
+    // Prevent a direct /admin.html request from exposing the admin application on a public hostname.
+    app.use(async (req, res, next) => {
+      if (req.path !== "/admin.html" && req.path !== "/index.html") return next();
+      try {
+        const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+        const hostValue = forwardedHost || req.get("host") || req.hostname;
+        const hostname = normalizeHostname(hostValue);
+        const route = hostname ? (await listDomainRoutes()).find(item => item.hostname === hostname && item.enabled) : undefined;
+        if (req.path === "/admin.html" && route?.targetView !== "admin") {
+          res.status(404).type("text/plain").send("Not Found");
+          return;
+        }
+        if (req.path === "/index.html" && route?.targetView === "admin") {
+          res.redirect(302, "/");
+          return;
+        }
+        next();
+      } catch (error) { next(error); }
+    });
     app.use(express.static(path.resolve(ROOT, "dist"), { index: false, maxAge: "1h" }));
-    app.get("*", (_req, res) => res.sendFile(path.resolve(ROOT, "dist", "index.html")));
+    app.get("*", async (req, res, next) => {
+      try {
+        const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+        const hostValue = forwardedHost || req.get("host") || req.hostname;
+        const hostname = normalizeHostname(hostValue);
+        const route = hostname ? (await listDomainRoutes()).find(item => item.hostname === hostname && item.enabled) : undefined;
+        const isAdminHost = route?.targetView === "admin";
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+        if (isAdminHost) {
+          res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+          res.setHeader("Cache-Control", "no-store");
+        }
+        res.sendFile(path.resolve(ROOT, "dist", isAdminHost ? "admin.html" : "index.html"));
+      } catch (error) { next(error); }
+    });
   }
 
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {

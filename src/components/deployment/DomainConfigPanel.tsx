@@ -1,208 +1,184 @@
 /**
- * @license
- * SPDX-License-Identifier: Apache-2.0
+ * Server-backed domain routing manager. This panel saves application routes through
+ * the authenticated backend API; it does not pretend to edit registrar DNS records.
  */
+import React, { useEffect, useState } from 'react';
+import type { CloudflareWorkersPagesConfig, DomainRouteSetting } from '../../types/index.ts';
 
-import React, { useState } from 'react';
-import { CloudflareWorkersPagesConfig } from '../../types/index.ts';
-
-interface DomainConfigPanelProps {
+interface ApiRoute {
+  hostname: string;
+  targetView: 'admin' | 'downloads';
+  enabled: boolean;
+  updatedAt?: string;
+}
+interface Props {
   isOpen: boolean;
   onClose: () => void;
   config: CloudflareWorkersPagesConfig;
-  onUpdateConfig: (newConfig: CloudflareWorkersPagesConfig) => void;
-  onNotify: (msg: string) => void;
+  onUpdateConfig: (config: CloudflareWorkersPagesConfig) => void;
+  onNotify: (message: string) => void;
+  adminToken: string;
 }
+const cleanHost = (value: string) => value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+const hostPattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/;
 
-export const DomainConfigPanel: React.FC<DomainConfigPanelProps> = ({
-  isOpen,
-  onClose,
-  config,
-  onUpdateConfig,
-  onNotify
-}) => {
-  const [baseDomain, setBaseDomain] = useState(config.routes[0]?.domain || 'forgeos.vn');
-  const [studioSub, setStudioSub] = useState(config.routes[0]?.subdomain || 'quan-tri');
-  const [downloadSub, setDownloadSub] = useState(config.routes[1]?.subdomain || 'tai-ve');
-  const [isApiSaving, setIsApiSaving] = useState(false);
+export const DomainConfigPanel: React.FC<Props> = ({ isOpen, onClose, config, onUpdateConfig, onNotify, adminToken }) => {
+  const [adminDomain, setAdminDomain] = useState('');
+  const [publicDomain, setPublicDomain] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      setNotice('');
+      try {
+        const response = await fetch('/api/v1/admin/domain-routes', {
+          headers: { Authorization: `Bearer ${adminToken}`, Accept: 'application/json' }
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || `Không tải được cấu hình (HTTP ${response.status}).`);
+        const routes = (data.routes || []) as ApiRoute[];
+        if (!cancelled) {
+          setAdminDomain(routes.find(route => route.targetView === 'admin')?.hostname || '');
+          setPublicDomain(routes.find(route => route.targetView === 'downloads')?.hostname || '');
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Không tải được cấu hình định tuyến.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [isOpen, adminToken]);
 
   if (!isOpen) return null;
 
-  const handleSaveDomain = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsApiSaving(true);
-    const cleanDomain = baseDomain.trim().toLowerCase().replace(/^https?:\/\//, '');
-
-    setTimeout(() => {
-      const updatedRoutes = [
-        {
-          ...config.routes[0],
-          domain: cleanDomain,
-          subdomain: studioSub.trim().toLowerCase()
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    const adminHost = cleanHost(adminDomain);
+    const storeHost = cleanHost(publicDomain);
+    if (!hostPattern.test(adminHost) || !hostPattern.test(storeHost)) {
+      setError('Nhập hostname hợp lệ, ví dụ quan-tri.example.com và tai-ve.example.com. Không nhập đường dẫn hoặc wildcard.');
+      return;
+    }
+    if (adminHost === storeHost) {
+      setError('Tên miền quản trị và cổng tải phải khác nhau.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch('/api/v1/admin/domain-routes', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
         },
-        {
-          ...config.routes[1],
-          domain: cleanDomain,
-          subdomain: downloadSub.trim().toLowerCase()
-        }
-      ];
-
+        body: JSON.stringify({ adminDomain: adminHost, publicDomain: storeHost })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || `Lưu thất bại (HTTP ${response.status}).`);
+      const routes = (data.routes || []) as ApiRoute[];
+      const toSetting = (route: ApiRoute, index: number): DomainRouteSetting => {
+        const pieces = route.hostname.split('.');
+        return {
+          id: route.targetView === 'admin' ? 'route-admin' : 'route-downloads',
+          subdomain: pieces.length > 1 ? pieces[0] : route.hostname,
+          domain: pieces.length > 1 ? pieces.slice(1).join('.') : '',
+          targetView: route.targetView === 'admin' ? 'studio' : 'downloads',
+          purpose: route.targetView === 'admin'
+            ? 'Admin Control Center; tất cả thao tác nhạy cảm phải qua API xác thực.'
+            : 'Public Store; chỉ hiển thị bản phát hành đã xuất bản.',
+          dnsType: 'CNAME',
+          dnsTarget: 'Cần gắn custom domain ở nền tảng hosting',
+          status: 'pending',
+          sslStatus: 'provisioning',
+          accessControl: route.targetView === 'admin' ? 'Internal Token Auth' : 'Public Edge CDN',
+          apiManaged: true
+        };
+      };
       onUpdateConfig({
         ...config,
-        routes: updatedRoutes,
-        workersRoute: `${studioSub.trim()}.${cleanDomain}/*`
+        routes: routes.map(toSetting),
+        workersRoute: `${adminHost}/*`,
+        pagesDomain: storeHost
       });
-
-      setIsApiSaving(false);
-      onNotify(`Đã cập nhật định tuyến tên miền qua API thành công! Phân vùng Quản trị (${studioSub}.${cleanDomain}) và Tải về (${downloadSub}.${cleanDomain}) được cô lập an toàn.`);
-      onClose();
-    }, 600);
+      setAdminDomain(adminHost);
+      setPublicDomain(storeHost);
+      setNotice('Đã lưu bảng định tuyến trên API. Cấu hình DNS/custom domains và TLS tại nền tảng hosting vẫn là bước riêng.');
+      onNotify('Đã lưu ánh xạ hostname cho Admin Control Center và Public Store qua API.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể lưu cấu hình định tuyến.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-6 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+      <section role="dialog" aria-modal="true" aria-labelledby="domain-routing-title" className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl sm:p-7">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
-            <h3 className="text-base font-bold text-white">
-              Quản Lý Định Tuyến Tên Miền Qua API (Domain Routing API)
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Ánh xạ tên miền hiện có để phân chia truy cập riêng biệt giữa Giao diện Quản trị và Trang chủ Tải về.
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-[.18em] text-violet-300">API CONTROL PLANE</p>
+            <h2 id="domain-routing-title" className="mt-1 text-xl font-extrabold tracking-tight">Định tuyến hai giao diện theo tên miền</h2>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">Hostname được lưu trên backend và Worker/Render dùng để chọn đúng entry point. Cấu hình này không tự tạo bản ghi DNS hoặc cấp chứng chỉ TLS.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white text-lg font-mono px-2"
-          >
-            ×
-          </button>
+          <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-xl px-3 py-2 text-xl text-slate-400 hover:bg-slate-800 hover:text-white">×</button>
         </div>
 
-        <form onSubmit={handleSaveDomain} className="space-y-5">
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1">
-              Tên Miền Doanh Nghiệp Hiện Có (Registered Domain)
-            </label>
-            <input
-              type="text"
-              value={baseDomain}
-              onChange={(e) => setBaseDomain(e.target.value)}
-              placeholder="Ví dụ: doanhnghiep.vn"
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-            />
-            <p className="text-[11px] text-slate-500 mt-1">
-              Hệ thống sử dụng API Endpoint <code className="text-indigo-400">{config.apiEndpoint}</code> để tự động cấu hình bản ghi DNS và chứng chỉ SSL/TLS.
-            </p>
-          </div>
+        {loading ? (
+          <div className="flex items-center gap-3 py-10 text-sm text-slate-400"><span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-700 border-t-violet-400" />Đang tải cấu hình từ API…</div>
+        ) : (
+          <form onSubmit={handleSave} className="mt-5 space-y-5">
+            {error && <div role="alert" className="rounded-xl border border-rose-800 bg-rose-950/40 px-4 py-3 text-xs leading-5 text-rose-200">{error}</div>}
+            {notice && <div role="status" className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-3 text-xs leading-5 text-emerald-200">{notice}</div>}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Phân vùng Quản trị */}
-            <div className="bg-slate-950 border border-indigo-900/40 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-indigo-400 uppercase">
-                  1. Giao Diện Quản Trị & Phát Triển
-                </span>
-                <span className="text-[10px] bg-indigo-950 text-indigo-300 px-1.5 py-0.5 rounded font-mono">
-                  Cloudflare Worker
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Khu vực nội bộ: Quản lý mã nguồn, đóng gói đa nền tảng và kiểm định ký số.
-              </p>
-              <div className="pt-1">
-                <label className="text-[11px] text-slate-500 block mb-1">Tiền tố Subdomain:</label>
-                <div className="flex items-center bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white font-mono">
-                  <input
-                    type="text"
-                    value={studioSub}
-                    onChange={(e) => setStudioSub(e.target.value)}
-                    className="bg-transparent border-none outline-none w-20 text-indigo-300 font-semibold"
-                  />
-                  <span className="text-slate-500">.{baseDomain}</span>
-                </div>
-              </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="block rounded-2xl border border-violet-500/30 bg-slate-950 p-4">
+                <span className="flex items-center gap-2 text-xs font-bold text-violet-200"><span className="grid h-8 w-8 place-items-center rounded-xl bg-violet-500/15">⌘</span>Admin Control Center</span>
+                <span className="mt-4 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Hostname quản trị</span>
+                <input value={adminDomain} onChange={event => setAdminDomain(event.target.value)} required autoComplete="url" spellCheck={false} placeholder="quan-tri.example.com" className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 font-mono text-xs text-white outline-none focus:border-violet-400" />
+                <span className="mt-2 block text-[11px] leading-5 text-slate-500">Đăng nhập bắt buộc; API admin vẫn xác thực Bearer token độc lập.</span>
+              </label>
+              <label className="block rounded-2xl border border-emerald-500/30 bg-slate-950 p-4">
+                <span className="flex items-center gap-2 text-xs font-bold text-emerald-200"><span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-500/15">↓</span>Public Store</span>
+                <span className="mt-4 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Hostname công khai</span>
+                <input value={publicDomain} onChange={event => setPublicDomain(event.target.value)} required autoComplete="url" spellCheck={false} placeholder="tai-ve.example.com" className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 font-mono text-xs text-white outline-none focus:border-emerald-400" />
+                <span className="mt-2 block text-[11px] leading-5 text-slate-500">Chỉ dành cho tìm kiếm ứng dụng, manifest công khai và tải bản phát hành.</span>
+              </label>
             </div>
 
-            {/* Phân vùng Người dùng */}
-            <div className="bg-slate-950 border border-emerald-900/40 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-400 uppercase">
-                  2. Trang Chủ Người Dùng Tải Về
-                </span>
-                <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded font-mono">
-                  Cloudflare Pages
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Khu vực công khai: Tự động nhận diện HĐH, tải ứng dụng và chạy thử WebAssembly.
-              </p>
-              <div className="pt-1">
-                <label className="text-[11px] text-slate-500 block mb-1">Tiền tố Subdomain:</label>
-                <div className="flex items-center bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white font-mono">
-                  <input
-                    type="text"
-                    value={downloadSub}
-                    onChange={(e) => setDownloadSub(e.target.value)}
-                    className="bg-transparent border-none outline-none w-20 text-emerald-300 font-semibold"
-                  />
-                  <span className="text-slate-500">.{baseDomain}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Bảng cấu hình bản ghi DNS */}
-          <div className="space-y-2">
-            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-              Bản Ghi DNS Cần Thiết Lập Tại Nhà Đăng Ký Tên Miền
-            </span>
-            <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-950 font-mono text-[11px]">
-              <table className="w-full text-left">
-                <thead className="bg-slate-900 border-b border-slate-800 text-slate-400">
-                  <tr>
-                    <th className="py-2 px-3">Loại</th>
-                    <th className="py-2 px-3">Tên Host</th>
-                    <th className="py-2 px-3">Đích Bản Ghi (Value)</th>
-                    <th className="py-2 px-3 text-right">Chứng Chỉ SSL</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  <tr>
-                    <td className="py-2 px-3 text-indigo-400 font-bold">CNAME</td>
-                    <td className="py-2 px-3">{studioSub}</td>
-                    <td className="py-2 px-3 text-slate-400">forgeos-admin.workers.dev</td>
-                    <td className="py-2 px-3 text-right text-emerald-400">Tự Động (Bảo Vệ)</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 text-emerald-400 font-bold">CNAME</td>
-                    <td className="py-2 px-3">{downloadSub}</td>
-                    <td className="py-2 px-3 text-slate-400">{config.pagesDomain}</td>
-                    <td className="py-2 px-3 text-right text-emerald-400">Tự Động (Bảo Vệ)</td>
-                  </tr>
+            <div className="overflow-hidden rounded-xl border border-slate-700">
+              <div className="border-b border-slate-700 bg-slate-800/70 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Ánh xạ API hiện tại</div>
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950 text-[10px] uppercase text-slate-500"><tr><th className="px-4 py-3">Giao diện</th><th className="px-4 py-3">Hostname</th><th className="px-4 py-3">Entry point</th></tr></thead>
+                <tbody className="divide-y divide-slate-800">
+                  <tr><td className="px-4 py-3 font-semibold text-violet-200">Admin</td><td className="break-all px-4 py-3 font-mono text-slate-200">{cleanHost(adminDomain) || '—'}</td><td className="px-4 py-3 font-mono text-slate-400">admin.html / AdminApp</td></tr>
+                  <tr><td className="px-4 py-3 font-semibold text-emerald-200">Public Store</td><td className="break-all px-4 py-3 font-mono text-slate-200">{cleanHost(publicDomain) || '—'}</td><td className="px-4 py-3 font-mono text-slate-400">index.html / PublicStoreApp</td></tr>
                 </tbody>
               </table>
             </div>
-          </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs text-slate-400 hover:text-white"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={isApiSaving}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
-            >
-              {isApiSaving ? 'Đang cập nhật qua API...' : 'Lưu & Kích Hoạt Định Tuyến API'}
-            </button>
-          </div>
-        </form>
-      </div>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-[11px] leading-5 text-amber-100/80">
+              <strong className="text-amber-200">Bước triển khai sau khi lưu:</strong> thêm mỗi hostname vào đúng dịch vụ Cloudflare Workers/Pages hoặc Render; trỏ DNS theo hướng dẫn nền tảng và chờ TLS hoạt động. Không đặt Cloudflare API token trong trình duyệt hoặc mã nguồn.
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-800 pt-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={onClose} className="rounded-xl px-4 py-3 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white">Đóng</button>
+              <button type="submit" disabled={saving} className="rounded-xl bg-violet-500 px-5 py-3 text-xs font-extrabold text-white hover:bg-violet-400 disabled:opacity-60">{saving ? 'Đang lưu qua API…' : 'Lưu định tuyến qua API'}</button>
+            </div>
+          </form>
+        )}
+      </section>
     </div>
   );
 };

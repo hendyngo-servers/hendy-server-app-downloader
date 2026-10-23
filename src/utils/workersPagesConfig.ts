@@ -28,7 +28,7 @@ export function getDefaultDeploymentConfig(): CloudflareWorkersPagesConfig {
     r2Bucket: "hendy-server-app-artifacts",
     kvNamespace: "không dùng — metadata lưu trong PostgreSQL",
     githubRepoUrl: "https://github.com/hendyngo-servers/hendy-server-app-downloader",
-    apiEndpoint: "/api/v1/domains",
+    apiEndpoint: "/api/v1/admin/domain-routes",
     apiKeyProtected: true,
     routes
   };
@@ -38,7 +38,7 @@ export function getSecurityAuditReport(): SecurityAuditReport {
   return {
     sourceCodeExposureRisk: "Chưa được đo bằng kiểm thử bảo mật độc lập",
     sourceEncryption: "Không tuyên bố mã hóa source trong ứng dụng; bí mật phải lưu tại secret store",
-    interfaceIsolation: "UI Studio và trang tải dùng chế độ hiển thị riêng; quyền thực thi được kiểm tra ở API",
+    interfaceIsolation: "Public Store và Admin Control Center có hai HTML/React entry point độc lập; hostname router chọn entry, API admin yêu cầu Bearer session",
     binaryStripping: "Chưa thực hiện trong web build; chỉ áp dụng nếu quy trình native build hỗ trợ",
     apiGatewayProtection: "Bearer session, token hash trong DB, hết hạn phiên và giới hạn tốc độ đăng nhập",
     distributionStorage: "Cloudflare R2 private bucket + PostgreSQL (cần cấu hình đúng trên tài khoản)"

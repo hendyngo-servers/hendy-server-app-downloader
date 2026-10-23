@@ -38,6 +38,8 @@ jobs:
         run: npm run test:api
       - name: Build frontend
         run: npm run build
+      - name: Verify separate frontend bundles
+        run: node scripts/verify-frontend-separation.mjs
       - name: Validate Worker and static asset configuration
         run: npx wrangler@4.152.0 deploy --dry-run --config=wrangler.toml
       - name: Upload static build

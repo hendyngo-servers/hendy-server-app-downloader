@@ -1,11 +1,12 @@
 # Hendy Server App Downloader
 
-React/Vite app with two areas: a public download portal and an admin Studio. The Express backend stores metadata in PostgreSQL and binaries in private Cloudflare R2 rather than relying on the web-service filesystem.
+ForgeOS builds two independent React/Vite entry points: the public software store (`index.html` / `PublicStoreApp`) and the private admin control center (`admin.html` / `AdminApp`). They do not share an in-page mode toggle. The Express backend persists app metadata and hostname routing in PostgreSQL, and stores binaries in private Cloudflare R2.
 
 ## Architecture
 
-- Cloudflare Workers can serve the Vite SPA from `dist/` and route `/api/*` through `worker/index.ts`. The root `wrangler.toml` is configured for the `npx wrangler deploy` command shown in Cloudflare Workers Builds.
-- Cloudflare Pages is also supported; its separate `wrangler.pages.toml` configuration works with Pages Functions and `wrangler pages deploy`.
+- Cloudflare Workers serve `dist/index.html` on the Public Store hostname and `dist/admin.html` on the Admin hostname. `worker/index.ts` resolves hostname mappings through the backend API; `/admin.html` is rejected on a hostname mapped to the public store.
+- Cloudflare Pages uses a catch-all Pages Function to select the same independent entry points. `public/_routes.json` keeps hashed static assets out of Function invocation where possible; `wrangler.pages.toml` is used with `wrangler pages deploy`.
+- Render can also serve the same two entry points from one Web Service when both hostnames are added to the Render service and saved in the routing API.
 - The optional standalone API gateway Worker uses `wrangler.worker.toml`.
 - Render runs the Express/Node API. PostgreSQL stores metadata, sessions and audit logs; R2 stores the actual binaries.
 - The Node/Express server is **not executed directly inside Workers**. The Cloudflare entry points serve static assets and forward API requests to the reachable Render backend, which remains responsible for authentication, publishing and downloads.
@@ -34,6 +35,8 @@ Set these values in the Render Dashboard:
 | `R2_SECRET_ACCESS_KEY` | R2 S3 secret key |
 | `R2_BUCKET_NAME` | R2 bucket name |
 | `MAX_UPLOAD_BYTES` | `52428800` (50 MiB multipart limit) |
+| `ADMIN_DOMAIN` | Initial admin hostname, for example `quan-tri.example.com` |
+| `PUBLIC_DOWNLOAD_DOMAIN` | Initial public hostname, for example `tai-ve.example.com` |
 
 Set `ADMIN_PASSWORD` before the first production start. There are no default credentials in the backend. Production startup fails if PostgreSQL, R2, or admin credentials are missing.
 
@@ -61,10 +64,12 @@ Add a **repository variable** named `CLOUDFLARE_DEPLOY_ENABLED` with exact value
 
 ## 4. Deploy Cloudflare Workers or Pages
 
-1. **Workers deployment (matches the logged command `npx wrangler deploy`):** the root `wrangler.toml` defines `main = "worker/index.ts"` and `assets.directory = "./dist"`, so the Worker and Vite SPA deploy together. Keep the Cloudflare build command `npm install && npm run build` and deploy command `npx wrangler deploy`.
-2. In Cloudflare Worker Settings → Variables and Secrets, set `BACKEND_ORIGIN` to the HTTPS origin of the Render API when deploying through the Cloudflare Git integration. Wrangler routes `/api/*` through the Worker first, while static frontend routes are served from the assets directory and fall back to `index.html`.
-3. **Pages deployment (separate option):** use build command `npm install && npm run build` and output directory `dist`. The Pages Functions handler `functions/api/[[path]].ts` proxies API requests. GitHub Actions explicitly uses `wrangler.pages.toml` for Pages commands so the root Worker configuration is not mistaken for a Pages config.
-4. After the GitHub secrets and `CLOUDFLARE_DEPLOY_ENABLED=true` variable are ready, GitHub Actions can deploy the combined SPA Worker, the Pages project and the optional standalone API gateway `hendy-server-app-downloader-api`. Check the deployed Pages/Worker URL and test `/api/v1/public/apps`; the Render backend must be reachable and the required database and R2 variables must already be set.
+1. Build both standalone web entry points with `npm install && npm run build`. The output contains `dist/index.html` for Public Store and `dist/admin.html` for Admin Control Center.
+2. **Workers:** keep build command `npm install && npm run build` and deploy command `npx wrangler deploy`. The root `wrangler.toml` routes all paths through the host-aware Worker before passing static files to the Assets binding. Set `BACKEND_ORIGIN` in Worker Variables and Secrets.
+3. **Pages:** use output directory `dist`, the Pages Functions in `functions/`, and `wrangler.pages.toml`. Add both custom domains to the same Pages project. The catch-all Function asks the backend routing API which entry point to serve.
+4. Save the exact hostnames in Render variables or the authenticated Admin Control Center → API & tên miền panel. Then add each hostname as a custom domain to the Pages project, Worker, or Render service serving the frontend. Point DNS to the hosting provider's recommended target and wait for its TLS status to become active.
+5. The routing API is `GET /api/v1/public/domain-routes`, `GET /api/v1/public/domain-route?host=...`, and authenticated `GET/PUT /api/v1/admin/domain-routes`. Only the admin route API requires a Bearer token. The API saves which entry point belongs to each hostname; **it does not create DNS records or custom-domain/TLS attachments**. Those remain provider-side setup steps.
+6. Once the GitHub secrets and `CLOUDFLARE_DEPLOY_ENABLED=true` variable are ready, GitHub Actions may deploy the Worker/Pages project and standalone API gateway. Check `/healthz` and `/api/v1/public/apps`; the Render backend must be reachable and its PostgreSQL, R2, and admin credentials must be configured.
 
 Do not commit Wrangler configs containing database IDs, R2 secrets, admin passwords or API tokens. The two public config files declare the deployment shape only.
 
@@ -90,6 +95,8 @@ Check after deployment:
     curl -i https://YOUR-RENDER-SERVICE.onrender.com/healthz
     curl -i https://YOUR-RENDER-SERVICE.onrender.com/api/v1/public/apps
     curl -i https://hendy-server-app-downloader.pages.dev/api/v1/public/apps
+    curl -i 'https://hendy-server-app-downloader.pages.dev/api/v1/public/domain-routes'
+    curl -i 'https://hendy-server-app-downloader.pages.dev/api/v1/public/domain-route?host=tai-ve.example.com'
 
 An unauthenticated request to `/api/v1/admin/projects` must return 401. The public apps endpoint only returns applications with published releases and real uploaded artifacts.
 

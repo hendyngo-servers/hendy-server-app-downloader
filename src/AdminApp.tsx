@@ -3,7 +3,7 @@
  * separate entry and is not imported by this bundle.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { BuildArtifact, CloudflareWorkersPagesConfig, ProjectTemplate, ReleaseVersion, TargetPlatform } from './types/index.ts';
+import type { BuildArtifact, CloudflareWorkersPagesConfig, ProjectTemplate, ReleaseVersion } from './types/index.ts';
 import { SAMPLE_PROJECTS } from './utils/sampleProjects.ts';
 import { getDefaultDeploymentConfig } from './utils/workersPagesConfig.ts';
 import { AdminHeader } from './components/admin/AdminHeader.tsx';
@@ -27,7 +27,7 @@ export default function AdminApp() {
   const [isDomainSettingsOpen, setIsDomainSettingsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [publicStoreUrl, setPublicStoreUrl] = useState('');
-  const fileSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const fileSaveTimers = useRef<Record<string, number>>({});
 
   const notify = useCallback((message: string) => {
     setToast(message);
