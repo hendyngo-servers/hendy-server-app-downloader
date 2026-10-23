@@ -1,3 +1,0 @@
-name = "hendy-server-app-downloader-api"
-main = "worker/index.ts"
-compatibility_date = "2026-10-23"
