@@ -3,9 +3,6 @@ name: Deploy Hendy Server App Store to Cloudflare
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - wrangler.toml
-      - wrangler.pages.toml
   workflow_dispatch:
     inputs:
       target:
@@ -27,6 +24,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name != 'push' || github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
