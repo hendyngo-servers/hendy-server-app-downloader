@@ -100,7 +100,7 @@ export const DomainConfigPanel: React.FC<Props> = ({ isOpen, onClose, config, on
             : 'Public Store; chỉ hiển thị bản phát hành đã xuất bản.',
           dnsType: 'CNAME',
           dnsTarget: 'Cần gắn custom domain ở nền tảng hosting',
-          status: route.enabled ? 'active' : 'pending',
+          status: 'pending',
           sslStatus: 'provisioning',
           accessControl: route.targetView === 'admin' ? 'Internal Token Auth' : 'Public Edge CDN',
           apiManaged: true
