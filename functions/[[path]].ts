@@ -51,11 +51,23 @@ export async function onRequest(context: Context): Promise<Response> {
   const { request, env, next } = context;
   const url = new URL(request.url);
   const pathname = url.pathname;
-  const host = url.hostname.toLowerCase().replace(/\\.$/, "");
-  const sharedHost = Boolean(env.SHARED_API_DOMAIN && env.SHARED_API_DOMAIN.toLowerCase().replace(/\\.$/, "") === host);
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  const sharedHost = Boolean(env.SHARED_API_DOMAIN && env.SHARED_API_DOMAIN.toLowerCase().replace(/\.$/, "") === host);
 
   // API functions have their own explicit functions/api/[[path]].ts route.
-  if (pathname === "/api" || pathname.startsWith("/api/") || pathname === "/healthz") return next(request);
+  if (pathname === "/api" || pathname.startsWith("/api/")) return next(request);
+  if (pathname === "/healthz") {
+    const backend = validBackendOrigin(env.BACKEND_ORIGIN);
+    if (!backend) return Response.json({ success: false, error: "BACKEND_ORIGIN is not configured." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    try {
+      const response = await fetch(new URL("/healthz", backend), { method: request.method, headers: { Accept: "application/json" } });
+      const headers = new Headers(response.headers);
+      headers.set("Cache-Control", "no-store");
+      return new Response(response.body, { status: response.status, headers });
+    } catch {
+      return Response.json({ success: false, error: "Backend unavailable." }, { status: 502, headers: { "Cache-Control": "no-store" } });
+    }
+  }
   if (sharedHost) {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
