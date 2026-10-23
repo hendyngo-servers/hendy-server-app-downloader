@@ -63,31 +63,14 @@ export function generateWranglerConfig(config: CloudflareWorkersPagesConfig): st
 /** Emits the same gateway pattern as functions/api/[[path]].ts. API authorization stays at origin. */
 export function generatePagesFunctionsRoute(): string {
   return [
-    "/** Pages Functions uses the same Cloudflare-native API and D1/R2 bindings. */",
-    "import { dispatchApi, type CloudflareEnv } from \"../../worker/api-core\";",
+    "/** Cloudflare Pages Function using D1 and R2 bindings; no backend proxy. */",
+    'import { dispatchApi, type CloudflareEnv } from "../../worker/api-core";',
     "interface Context { request: Request; env: CloudflareEnv; }",
     "export async function onRequest(context: Context): Promise<Response> {",
     "  return dispatchApi(context.request, context.env);",
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     "}",
     ""
-  ].join("\n");
+  ].join("\\n");
 }
 
 export function generateGitHubWorkflowYaml(config: CloudflareWorkersPagesConfig): string {
