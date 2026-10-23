@@ -59,7 +59,8 @@ test('directory tree describes the Cloudflare-native architecture', () => {
   assert.ok(fileNames?.includes('functions'));
   assert.ok(fileNames?.includes('worker'));
   assert.ok(fileNames?.includes('.github'));
-  assert.ok(fileNames?.includes('migrations/d1'));
+  assert.ok(fileNames?.includes('migrations'));
+  assert.ok(tree.children?.find(c => c.name === 'migrations')?.children?.some(c => c.name === 'd1'));
 });
 
 test('architecture description documents native Cloudflare data services', () => {
