@@ -26,7 +26,7 @@ function runCommand(args) {
   });
 }
 async function main() {
-  await runCommand(["--yes", "wrangler@4.152.0", "d1", "migrations", "apply", "hendy-server-app-store", "--local", "--config=wrangler.toml"]);
+  await runCommand(["--yes", "wrangler@4.152.0", "d1", "migrations", "apply", "hendy-server-app-store", "--local", "--config=wrangler.toml", "--yes"]);
   child = spawn(npx, [
     "--yes", "wrangler@4.152.0", "dev", "--local", "--config=wrangler.toml",
     "--ip", "127.0.0.1", "--port", String(port),
