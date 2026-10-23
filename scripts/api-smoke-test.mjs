@@ -6,6 +6,13 @@ const origin = "http://127.0.0.1:" + port;
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 let logs = "";
 let child;
+function killProcessTree(proc, signal = "SIGTERM") {
+  if (!proc || proc.pid == null) return;
+  try {
+    if (process.platform !== "win32") process.kill(-proc.pid, signal);
+    else proc.kill(signal);
+  } catch { try { proc.kill(signal); } catch { /* already exited */ } }
+}
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -17,11 +24,11 @@ async function jsonRequest(path, init) {
 }
 function runCommand(args) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(npx, args, { stdio: ["ignore", "pipe", "pipe"], env: process.env });
+    const proc = spawn(npx, args, { stdio: ["ignore", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
     let output = "";
     const watchdog = setTimeout(() => {
       output += "\\nCommand watchdog expired after 45 seconds; terminating child process.";
-      proc.kill("SIGKILL");
+      killProcessTree(proc, "SIGKILL");
     }, 45000);
     proc.stdout.on("data", chunk => { output = (output + chunk.toString()).slice(-12000); });
     proc.stderr.on("data", chunk => { output = (output + chunk.toString()).slice(-12000); });
@@ -37,6 +44,7 @@ async function main() {
   const migrationOutput = await runCommand(["--yes", "wrangler@4.152.0", "d1", "migrations", "apply", "hendy-server-app-store", "--local", "--config=wrangler.toml"]);
   console.log(migrationOutput.slice(-3000));
   console.log("Starting local Cloudflare Worker...");
+
   child = spawn(npx, [
     "--yes", "wrangler@4.152.0", "dev", "--local", "--config=wrangler.toml",
     "--ip", "127.0.0.1", "--port", String(port),
@@ -44,7 +52,7 @@ async function main() {
     "--var", "ADMIN_PASSWORD:ci-only-test-password",
     "--var", "ADMIN_DISPLAY_NAME:CI-Test-Admin",
     "--var", "SHARED_API_DOMAIN:shared.example.test"
-  ], { stdio: ["ignore", "pipe", "pipe"], env: process.env });
+  ], { stdio: ["ignore", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
   child.stdout.on("data", chunk => { logs = (logs + chunk.toString()).slice(-12000); });
   child.stderr.on("data", chunk => { logs = (logs + chunk.toString()).slice(-12000); });
 
@@ -78,6 +86,7 @@ async function main() {
   });
   assert(login.response.ok && login.data.success && typeof login.data.token === "string", "Valid login must issue a Bearer token.");
   const token = login.data.token;
+  console.log("Authentication checks passed.");
 
   const projects = await jsonRequest("/api/v1/admin/projects", { headers: { Authorization: "Bearer " + token } });
   assert(projects.response.ok && Array.isArray(projects.data.projects) && projects.data.projects.length > 0, "Authenticated admin must read seeded projects.");
@@ -95,6 +104,7 @@ async function main() {
     body: JSON.stringify({ adminDomain: "admin.example.test", publicDomain: "store.example.test" })
   });
   assert(saveRoutes.response.ok && saveRoutes.data.routes.length === 2, "Admin must persist distinct Portal/Admin hostnames.");
+  console.log("Domain route tests passed.");
 
   const resolvedAdmin = await jsonRequest("/api/v1/public/domain-route?host=admin.example.test");
   assert(resolvedAdmin.response.ok && resolvedAdmin.data.targetView === "admin", "Hostname API must resolve the Admin entry.");
@@ -117,6 +127,7 @@ async function main() {
     method: "POST", headers: { Authorization: "Bearer " + token }, body: form
   });
   assert(upload.response.status === 201 && upload.data.artifact?.sha256, "Admin artifact upload must store the bytes in R2 and calculate SHA-256.");
+  console.log("Artifact upload and SHA-256 check passed.");
 
   const rereadProjects = await jsonRequest("/api/v1/admin/projects", { headers: { Authorization: "Bearer " + token } });
   const storedProject = rereadProjects.data.projects.find(item => item.id === project.id);
@@ -129,6 +140,7 @@ async function main() {
     body: JSON.stringify(storedProject)
   });
   assert(publish.response.ok, "An uploaded artifact may be published only through an authenticated project update.");
+  console.log("Artifact publication check passed.");
 
   const publicApps = await jsonRequest("/api/v1/public/apps");
   assert(publicApps.response.ok && publicApps.data.apps.some(item => item.slug === project.slug), "Published real artifacts must make the app visible in the Portal.");
@@ -136,6 +148,7 @@ async function main() {
   const download = await fetch(origin + upload.data.artifact.downloadUrl);
   assert(download.ok, "Public download endpoint must serve a published R2 artifact.");
   assert(await download.text() === "CI test artifact bytes", "Downloaded R2 artifact bytes must be unchanged.");
+  console.log("R2 download byte-integrity check passed.");
 
   const logout = await jsonRequest("/api/v1/auth/logout", { method: "POST", headers: { Authorization: "Bearer " + token } });
   assert(logout.response.ok && logout.data.success, "Logout must revoke the session.");
@@ -152,8 +165,8 @@ try {
   process.exitCode = 1;
 } finally {
   if (child && child.exitCode === null && child.signalCode === null) {
-    child.kill("SIGTERM");
+    killProcessTree(child, "SIGTERM");
     await Promise.race([new Promise(resolve => child.once("exit", resolve)), delay(2000)]);
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    if (child.exitCode === null && child.signalCode === null) killProcessTree(child, "SIGKILL");
   }
 }
