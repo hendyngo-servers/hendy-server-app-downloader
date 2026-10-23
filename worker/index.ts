@@ -11,6 +11,7 @@ interface Env {
   ADMIN_DOMAIN?: string;
   PUBLIC_DOWNLOAD_DOMAIN?: string;
   PUBLIC_STORE_DOMAIN?: string;
+  SHARED_API_DOMAIN?: string;
   ASSETS?: AssetsBinding;
 }
 type DomainView = "admin" | "downloads";
@@ -112,9 +113,26 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    const host = normalizedHost(url.hostname);
+    const sharedHost = Boolean(env.SHARED_API_DOMAIN && normalizedHost(env.SHARED_API_DOMAIN) === host);
 
     if (path === "/healthz" || path === "/api" || path.startsWith("/api/")) {
       return proxyToBackend(request, env);
+    }
+    if (sharedHost) {
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
+      }
+      if (path === "/" || path === "/index.html") {
+        return Response.json({
+          service: "Hendy Shared API",
+          status: "online",
+          apiBase: "/api/v1",
+          health: "/healthz",
+          modules: { portal: "public store UI", admin: "admin UI (authentication required)", shared: "shared API and data services" }
+        }, { headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+      }
+      return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
     }
     if (!env.ASSETS) return proxyToBackend(request, env);
     if (request.method !== "GET" && request.method !== "HEAD") {
@@ -127,7 +145,6 @@ export default {
       !path.split("/").pop()?.includes(".");
     if (!pageRequest) return withSecurityHeaders(await env.ASSETS.fetch(request), false);
 
-    const host = normalizedHost(url.hostname);
     const view = await resolveDomainView(host, env);
     if (path === "/admin.html" && view !== "admin") {
       return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });

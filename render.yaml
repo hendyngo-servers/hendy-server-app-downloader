@@ -35,3 +35,5 @@ services:
         sync: false
       - key: PUBLIC_DOWNLOAD_DOMAIN
         sync: false
+      - key: SHARED_API_DOMAIN
+        sync: false
