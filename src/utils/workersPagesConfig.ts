@@ -159,7 +159,9 @@ export function getWorkersPagesDirectoryTree(): DirectoryNode {
         name: ".github", type: "directory", path: "/.github", children: [
           {
             name: "workflows", type: "directory", path: "/.github/workflows", children: [
-              { name: "ci-deploy.yml", type: "file", path: "/.github/workflows/ci-deploy.yml", description: "Type-check, build và deploy Pages sau push main" }
+              { name: "ci-deploy.yml", type: "file", path: "/.github/workflows/ci-deploy.yml", description: "Cloudflare-only checks for TypeScript, D1/R2 API, Worker and Pages" },
+              { name: "deploy-cloudflare.yml", type: "file", path: "/.github/workflows/deploy-cloudflare.yml", description: "Deploy Worker, Pages or both" },
+              { name: "build-and-publish-release.yml", type: "file", path: "/.github/workflows/build-and-publish-release.yml", description: "Package web/source releases and optional real native installers" }
             ]
           }
         ]
@@ -173,12 +175,17 @@ export function getWorkersPagesDirectoryTree(): DirectoryNode {
           }
         ]
       },
-      { name: "migrations", type: "directory", path: "/migrations", children: [
-        { name: "0001_init.sql", type: "file", path: "/migrations/d1/0001_init.sql", description: "Cloudflare D1 schema for metadata, sessions and audit" }
+      { name: "worker", type: "directory", path: "/worker", children: [
+        { name: "index.ts", type: "file", path: "/worker/index.ts", description: "Host-aware Worker serving separate Portal/Admin entries and native API" },
+        { name: "api-core.ts", type: "file", path: "/worker/api-core.ts", description: "D1 sessions/metadata and R2 artifact storage API" }
       ] },
-      
-      
-      { name: "wrangler.toml", type: "file", path: "/wrangler.toml", description: "Cấu hình Cloudflare Pages; không chứa resource ID giả hoặc secret" },
+      { name: "migrations", type: "directory", path: "/migrations", children: [
+        { name: "d1", type: "directory", path: "/migrations/d1", children: [
+          { name: "0001_init.sql", type: "file", path: "/migrations/d1/0001_init.sql", description: "Cloudflare D1 schema for metadata, sessions and audit" }
+        ] }
+      ] },
+      { name: "wrangler.toml", type: "file", path: "/wrangler.toml", description: "Cloudflare Worker static assets with D1 and R2 bindings" },
+      { name: "wrangler.pages.toml", type: "file", path: "/wrangler.pages.toml", description: "Cloudflare Pages Functions with D1 and R2 bindings" },
       { name: "src/client/portal/DownloadPortal.tsx", type: "file", path: "/src/client/portal/DownloadPortal.tsx", description: "Public Portal entry" },
       { name: "src/client/admin/AdminPanelPlus.tsx", type: "file", path: "/src/client/admin/AdminPanelPlus.tsx", description: "Admin Control Center entry" },
       { name: "README.md", type: "file", path: "/README.md", description: "Cloudflare-only configuration, secrets, deployment and smoke checks" }
