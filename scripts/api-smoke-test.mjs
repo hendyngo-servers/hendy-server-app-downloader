@@ -34,7 +34,7 @@ function runCommand(args) {
 }
 async function main() {
   console.log("Applying D1 migrations to local Wrangler storage...");
-  const migrationOutput = await runCommand(["--yes", "wrangler@4.152.0", "d1", "migrations", "apply", "hendy-server-app-store", "--local", "--config=wrangler.toml", "--yes"]);
+  const migrationOutput = await runCommand(["--yes", "wrangler@4.152.0", "d1", "migrations", "apply", "hendy-server-app-store", "--local", "--config=wrangler.toml"]);
   console.log(migrationOutput.slice(-3000));
   console.log("Starting local Cloudflare Worker...");
   child = spawn(npx, [
