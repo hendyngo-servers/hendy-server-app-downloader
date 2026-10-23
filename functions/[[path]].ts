@@ -52,8 +52,8 @@ export async function onRequest(context: Context): Promise<Response> {
     return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   }
 
-  const view = path === "/admin" ? "admin" : await resolveDomainView(host, env);
-  if (path === "/admin.html" && view !== "admin") {
+  const view = await resolveDomainView(host, env);
+  if ((path === "/admin.html" || path === "/admin") && view !== "admin") {
     return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
   }
   const rewritten = new URL(url.toString());
