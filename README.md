@@ -1,6 +1,6 @@
 # Hendy Server App Store — Cloudflare-only
 
-Hendy Server App Store separates the public software portal and administrator console into two independent React/Vite entry points, with a shared API and data layer. The runtime uses **Cloudflare Workers or Cloudflare Pages Functions + D1 + R2**. No Render service, Node/Express origin, PostgreSQL server, or external API backend is required.
+Hendy Server App Store separates the public software portal and administrator console into two independent React/Vite entry points, with a shared API and data layer. The runtime uses **Cloudflare Workers or Cloudflare Pages Functions + D1 + R2**. No external Node.js application server, PostgreSQL service, or API origin is required.
 
 ## Architecture
 
@@ -25,17 +25,17 @@ npm run db:migrate:local
 npx wrangler@4.152.0 dev --config=wrangler.toml
 ```
 
-Deploy production through **GitHub → Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow → workers**. Or configure Cloudflare Workers Builds to use `npm install && npm run build` and `npx wrangler deploy` after the D1 resource ID and runtime secrets have been set.
+Deploy production through **GitHub → Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow → workers**. After the required secrets are configured, pushes to `main` automatically deploy Workers by default. The workflow does not require a separate enable variable. You can also configure Cloudflare Workers Builds to use `npm install && npm run build` and `npx wrangler deploy`.
 
 ### Option B — Cloudflare Pages
 
-The Pages project uses `dist` as its build output. The Pages Functions under `functions/` call `worker/api-core.ts` directly and use D1/R2 bindings; there is no `BACKEND_ORIGIN` proxy.
+The Pages project uses `dist` as its build output. The Pages Functions under `functions/` call `worker/api-core.ts` directly and use D1/R2 bindings; the API runs directly in Cloudflare Functions.
 
-Run **GitHub → Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow → pages**. Attach the Portal, Admin and Shared hostnames to the Pages project after deployment.
+Run **GitHub → Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow → pages**. To make Pages the automatic target on later pushes, set `CLOUDFLARE_TARGET=pages` in repository variables. Attach the Portal, Admin and Shared hostnames to the Pages project after deployment.
 
 ### Deploy both
 
-Select `both` from the same GitHub Actions workflow only when you intend to publish both a full-stack Worker and a Pages project. The API runs in each target independently but can use the same D1/R2 resources. Keep the Worker/Pages hostnames distinct or attach each hostname to only the intended target.
+Select `both` from the same GitHub Actions workflow only when you intend to publish both a full-stack Worker and a Pages project. To deploy both automatically, set `CLOUDFLARE_TARGET=both`. The API runs in each target independently but can use the same D1/R2 resources. Keep the Worker/Pages hostnames distinct or attach each hostname to only the intended target.
 
 ## One-time GitHub setup
 
@@ -54,8 +54,7 @@ Optional repository **variables**:
 
 | Name | Example | Purpose |
 |---|---|---|
-| `CLOUDFLARE_DEPLOY_ENABLED` | `true` | Enables automatic deployment after pushes to `main`; manual workflow runs work without this switch |
-| `CLOUDFLARE_TARGET` | `workers` | Automatic target: `workers`, `pages`, or `both` |
+| `CLOUDFLARE_TARGET` | `workers` | Automatic target on pushes to `main`: `workers` (default), `pages`, or `both` |
 | `ADMIN_DISPLAY_NAME` | `Hendy Administrator` | Display name after login |
 | `ADMIN_DOMAIN` | `admin.example.com` | Admin hostname only, no scheme/path |
 | `PUBLIC_DOWNLOAD_DOMAIN` | `downloads.example.com` | Portal hostname only, no scheme/path |
@@ -103,7 +102,7 @@ Host routing maps the Portal and Admin UI to distinct HTML entries. The Shared h
 
 ## CI, tests and releases
 
-Pull requests and pushes to `main` run type-checking, the separate-entry frontend check, local D1/R2 Worker API smoke tests and Wrangler dry-runs through `.github/workflows/ci-deploy.yml`. Production deployment is managed solely by `.github/workflows/deploy-cloudflare.yml`.
+Pull requests and pushes to `main` run type-checking, the separate-entry frontend check, local D1/R2 Worker API smoke tests and Wrangler dry-runs through `.github/workflows/ci-deploy.yml`. Production deployment is managed solely by `.github/workflows/deploy-cloudflare.yml`: pushes to `main` deploy Workers by default, unless `CLOUDFLARE_TARGET` selects `pages` or `both`; the workflow can also be run manually.
 
 The release workflow `.github/workflows/build-and-publish-release.yml` packages the source and web build. Windows installers and Android APKs are included only when real packages are supplied under `release-assets/windows/` or `release-assets/android/`; this repository does not manufacture native installers without a native build project.
 

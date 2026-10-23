@@ -1,6 +1,6 @@
 # Portal / Admin / Shared — Cloudflare-only domains
 
-Hendy Server App Store runs without Render or an external API origin. Both deployment options use `worker/api-core.ts` and Cloudflare bindings: D1 for metadata/sessions and R2 for installer artifacts.
+Hendy Server App Store runs entirely on Cloudflare. Both deployment options use `worker/api-core.ts` and Cloudflare bindings: D1 for metadata/sessions and R2 for installer artifacts.
 
 ## Recommended hostnames
 
@@ -21,14 +21,14 @@ Shared is the shared API/data layer, not a third React frontend.
 - `ADMIN_USERNAME`: non-default administrator username.
 - `ADMIN_PASSWORD`: long random password, never committed to source.
 
-Optional repository variables are `CLOUDFLARE_DEPLOY_ENABLED=true`, `CLOUDFLARE_TARGET=workers|pages|both`, `ADMIN_DISPLAY_NAME`, `ADMIN_DOMAIN`, `PUBLIC_DOWNLOAD_DOMAIN`, and `SHARED_API_DOMAIN`.
+Optional repository variables are `CLOUDFLARE_TARGET=workers|pages|both`, `ADMIN_DISPLAY_NAME`, `ADMIN_DOMAIN`, `PUBLIC_DOWNLOAD_DOMAIN`, and `SHARED_API_DOMAIN`.
 
 ## Deploy
 
 1. Open **Actions → Deploy Hendy Server App Store to Cloudflare → Run workflow**.
 2. Select `workers` for a single full-stack Worker (recommended), `pages` for Pages + Pages Functions, or `both` only when you need to operate both.
 3. The workflow checks/creates D1 `hendy-server-app-store` and R2 `hendy-server-app-artifacts`, writes the D1 UUID to both Wrangler configs, runs `migrations/d1/0001_init.sql`, writes runtime secrets and deploys the chosen target.
-4. Optionally set `CLOUDFLARE_DEPLOY_ENABLED=true` to deploy automatically on pushes to `main`. Set `CLOUDFLARE_TARGET` to `workers`, `pages` or `both`; when unset, automatic deployments default to Workers.
+4. After configuring the required secrets, pushes to `main` deploy automatically. Set `CLOUDFLARE_TARGET` to `workers`, `pages` or `both`; when unset, automatic deployments default to Workers.
 5. Review the Actions result. A successful code deployment does not prove that external custom-domain names are attached or DNS/TLS is active.
 
 ## DNS and TLS
