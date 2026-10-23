@@ -1,107 +1,111 @@
-name: Deploy Hendy Portal, Admin and Shared API to Cloudflare
+name: Deploy Hendy Server App Store to Cloudflare
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       target:
-        description: "Deployment target"
+        description: "Deploy to Cloudflare Workers, Pages, or both"
         required: true
         type: choice
         options:
-          - both
-          - pages
           - workers
-        default: both
+          - pages
+          - both
+        default: workers
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: hendy-cloudflare-manual-deploy
+  group: hendy-cloudflare-production
   cancel-in-progress: false
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      ADMIN_DISPLAY_NAME: ${{ vars.ADMIN_DISPLAY_NAME }}
+      ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN }}
+      PUBLIC_DOWNLOAD_DOMAIN: ${{ vars.PUBLIC_DOWNLOAD_DOMAIN }}
+      SHARED_API_DOMAIN: ${{ vars.SHARED_API_DOMAIN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies and validate
+      - name: Validate deployment secrets
+        shell: bash
         run: |
-          npm install
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing GitHub secret CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing GitHub secret CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          test -n "$ADMIN_USERNAME" || { echo "Missing GitHub secret ADMIN_USERNAME"; exit 1; }
+          test -n "$ADMIN_PASSWORD" || { echo "Missing GitHub secret ADMIN_PASSWORD"; exit 1; }
+      - name: Install dependencies
+        run: npm install
+      - name: Type-check and build
+        run: |
           npm run lint
-          npm run test:api
           npm run build
           node scripts/verify-frontend-separation.mjs
-      - name: Validate backend origin
-        env:
-          RENDER_BACKEND_ORIGIN: ${{ secrets.RENDER_BACKEND_ORIGIN }}
+      - name: Ensure Cloudflare D1 and R2 resources exist
+        run: node scripts/ensure-cloudflare-resources.mjs
+      - name: Apply Cloudflare D1 migrations
+        run: npx --yes wrangler@4.152.0 d1 migrations apply hendy-server-app-store --remote --config=wrangler.toml --yes
+      - name: Prepare runtime secrets
+        shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const raw = process.env.RENDER_BACKEND_ORIGIN?.trim();
-          if (!raw) throw new Error("Add repository secret RENDER_BACKEND_ORIGIN first.");
-          const url = new URL(raw);
-          if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash || url.username || url.password) {
-            throw new Error("RENDER_BACKEND_ORIGIN must be an HTTPS origin without path, query, fragment or credentials.");
+          import { writeFileSync } from "node:fs";
+          const values = {
+            ADMIN_USERNAME: process.env.ADMIN_USERNAME,
+            ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+            ADMIN_DISPLAY_NAME: process.env.ADMIN_DISPLAY_NAME || "Hendy Administrator"
+          };
+          for (const key of ["ADMIN_DOMAIN", "PUBLIC_DOWNLOAD_DOMAIN", "SHARED_API_DOMAIN"]) {
+            const value = process.env[key]?.trim();
+            if (value) values[key] = value.toLowerCase().replace(/\.$/, "");
           }
+          writeFileSync(".cloudflare-runtime-secrets.json", JSON.stringify(values), { mode: 0o600 });
           NODE
-      - name: Prepare Pages bindings
-        if: inputs.target == 'both' || inputs.target == 'pages'
-        env:
-          RENDER_BACKEND_ORIGIN: ${{ secrets.RENDER_BACKEND_ORIGIN }}
-          SHARED_API_DOMAIN: ${{ secrets.SHARED_API_DOMAIN }}
+      - name: Set Worker runtime secrets
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'workers' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == '' || vars.CLOUDFLARE_TARGET == 'workers' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        run: npx --yes wrangler@4.152.0 secret bulk .cloudflare-runtime-secrets.json --config=wrangler.toml
+      - name: Deploy full-stack Cloudflare Worker
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'workers' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == '' || vars.CLOUDFLARE_TARGET == 'workers' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        run: npx --yes wrangler@4.152.0 deploy --config=wrangler.toml
+      - name: Set Pages Functions runtime secrets
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        run: npx --yes wrangler@4.152.0 pages secret bulk .cloudflare-runtime-secrets.json --project-name=hendy-server-app-downloader --config=wrangler.pages.toml
+      - name: Deploy Cloudflare Pages and Functions
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.target == 'pages' || inputs.target == 'both')) || (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' && (vars.CLOUDFLARE_TARGET == 'pages' || vars.CLOUDFLARE_TARGET == 'both')) }}
+        run: npx --yes wrangler@4.152.0 pages deploy dist --project-name=hendy-server-app-downloader --branch=main --config=wrangler.pages.toml
+      - name: Persist generated non-secret D1 ID in repository
+        if: always() && github.event_name == 'workflow_dispatch' && success()
+        shell: bash
         run: |
-          node --input-type=module <<'NODE'
-          import { writeFileSync } from "node:fs";
-          const backend = new URL(process.env.RENDER_BACKEND_ORIGIN);
-          const entries = ["BACKEND_ORIGIN=" + backend.origin];
-          const shared = process.env.SHARED_API_DOMAIN?.trim();
-          if (shared) entries.push("SHARED_API_DOMAIN=" + shared.toLowerCase().replace(/\.$/, ""));
-          writeFileSync(".pages-bindings.env", entries.join("\n") + "\n", { mode: 0o600 });
-          NODE
-      - name: Set Pages Functions bindings
-        if: inputs.target == 'both' || inputs.target == 'pages'
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages secret bulk .pages-bindings.env --project-name=hendy-server-app-downloader --config=wrangler.pages.toml
-      - name: Deploy Cloudflare Pages
-        if: inputs.target == 'both' || inputs.target == 'pages'
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main --config=wrangler.pages.toml
-      - name: Deploy Cloudflare Worker
-        if: inputs.target == 'both' || inputs.target == 'workers'
-        uses: cloudflare/wrangler-action@v4
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config=wrangler.toml
-      - name: Configure Worker backend secret
-        if: inputs.target == 'both' || inputs.target == 'workers'
-        env:
-          RENDER_BACKEND_ORIGIN: ${{ secrets.RENDER_BACKEND_ORIGIN }}
-          SHARED_API_DOMAIN: ${{ secrets.SHARED_API_DOMAIN }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { writeFileSync } from "node:fs";
-          const backend = new URL(process.env.RENDER_BACKEND_ORIGIN);
-          const entries = ["BACKEND_ORIGIN=" + backend.origin];
-          const shared = process.env.SHARED_API_DOMAIN?.trim();
-          if (shared) entries.push("SHARED_API_DOMAIN=" + shared.toLowerCase().replace(/\.$/, ""));
-          writeFileSync(".worker-bindings.env", entries.join("\n") + "\n", { mode: 0o600 });
-          NODE
-          npx wrangler@4.152.0 secret bulk .worker-bindings.env --config=wrangler.toml
-      - name: Clean temporary secret files
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add wrangler.toml wrangler.pages.toml
+          if ! git diff --cached --quiet; then
+            git commit -m "Configure Cloudflare D1 database binding"
+            git push origin HEAD:main
+          else
+            echo "Cloudflare resource IDs are already up to date."
+          fi
+      - name: Remove temporary secret file
         if: always()
-        run: rm -f .pages-bindings.env .worker-bindings.env
+        run: rm -f .cloudflare-runtime-secrets.json
