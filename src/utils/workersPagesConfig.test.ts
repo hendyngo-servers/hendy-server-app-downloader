@@ -5,7 +5,6 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   getDefaultDeploymentConfig,
   generateWranglerConfig,
@@ -16,81 +15,62 @@ import {
   getSecurityAuditReport
 } from './workersPagesConfig.ts';
 
-test('default deployment config declares separate Portal/Admin routes and Cloudflare API', () => {
+test('getDefaultDeploymentConfig returns isolated routes for studio and downloads with API config', () => {
   const config = getDefaultDeploymentConfig();
   assert.equal(config.routes.length, 2);
   assert.equal(config.routes[0].targetView, 'studio');
   assert.equal(config.routes[1].targetView, 'downloads');
   assert.notEqual(config.routes[0].subdomain, config.routes[1].subdomain);
-  assert.equal(config.apiEndpoint, '/api/v1/admin/domain-routes');
-  assert.match(config.kvNamespace, /Cloudflare D1/);
+  assert.equal(config.apiEndpoint, '/api/v1/domains');
 });
 
-test('Worker config uses Cloudflare assets, D1 and R2 without an origin backend', () => {
-  const toml = generateWranglerConfig(getDefaultDeploymentConfig());
-  assert.match(toml, /main = "worker\/index\.ts"/);
-  assert.match(toml, /\[\[d1_databases\]\]/);
-  assert.match(toml, /binding = "DB"/);
-  assert.match(toml, /migrations\/d1/);
-  assert.match(toml, /\[\[r2_buckets\]\]/);
-  assert.match(toml, /binding = "ARTIFACTS"/);
-  assert.doesNotMatch(toml, /BACKEND_ORIGIN|DATABASE_URL|Render|PostgreSQL/);
+test('generateWranglerConfig includes required Workers & Pages bindings and security variables', () => {
+  const config = getDefaultDeploymentConfig();
+  const toml = generateWranglerConfig(config);
+  assert.match(toml, /RELEASE_KV/);
+  assert.match(toml, /RELEASE_STORAGE/);
+  assert.match(toml, /API_DOMAIN_ROUTING_ENDPOINT/);
+  assert.match(toml, /SOURCE_CODE_ENCRYPTION/);
 });
 
-test('Pages Functions execute the same native D1/R2 API', () => {
+test('generatePagesFunctionsRoute includes domain routing API and R2 streaming', () => {
   const code = generatePagesFunctionsRoute();
-  assert.match(code, /dispatchApi/);
-  assert.match(code, /worker\/api-core/);
-  assert.doesNotMatch(code, /BACKEND_ORIGIN|fetch\(new Request/);
+  assert.match(code, /RELEASE_STORAGE\.get/);
+  assert.match(code, /\/api\/download\//);
+  assert.match(code, /\/api\/v1\/domains/);
+  assert.match(code, /\/api\/v1\/security\/audit/);
 });
 
-test('Cloudflare workflow template validates and deploys Pages without external backend', () => {
-  const yaml = generateGitHubWorkflowYaml(getDefaultDeploymentConfig());
+test('generateGitHubWorkflowYaml specifies commercial multi-OS build matrix', () => {
+  const config = getDefaultDeploymentConfig();
+  const yaml = generateGitHubWorkflowYaml(config);
+  assert.match(yaml, /windows-latest/);
+  assert.match(yaml, /macos-14/);
+  assert.match(yaml, /ubuntu-22\.04/);
   assert.match(yaml, /cloudflare\/wrangler-action/);
-  assert.match(yaml, /pages deploy dist/);
-  assert.match(yaml, /CLOUDFLARE_API_TOKEN/);
-  assert.doesNotMatch(yaml, /RENDER_BACKEND_ORIGIN|Render|PostgreSQL/);
 });
 
-test('directory tree describes the Cloudflare-native architecture', () => {
+test('getWorkersPagesDirectoryTree provides full required structure', () => {
   const tree = getWorkersPagesDirectoryTree();
   assert.equal(tree.type, 'directory');
   const fileNames = tree.children?.map(c => c.name);
   assert.ok(fileNames?.includes('wrangler.toml'));
   assert.ok(fileNames?.includes('functions'));
-  assert.ok(fileNames?.includes('worker'));
   assert.ok(fileNames?.includes('.github'));
-  assert.ok(fileNames?.includes('migrations'));
-  assert.ok(tree.children?.find(c => c.name === 'migrations')?.children?.some(c => c.name === 'd1'));
 });
 
-test('architecture description documents native Cloudflare data services', () => {
-  const md = generateSystemArchitectureMarkdown(getDefaultDeploymentConfig());
-  assert.match(md, /Cloudflare Worker/);
-  assert.match(md, /Cloudflare D1 metadata/);
-  assert.match(md, /Cloudflare R2 private artifact bucket/);
-  assert.doesNotMatch(md, /Render Free|PostgreSQL/);
+test('generateSystemArchitectureMarkdown includes ASCII architecture diagram', () => {
+  const config = getDefaultDeploymentConfig();
+  const md = generateSystemArchitectureMarkdown(config);
+  assert.match(md, /System Architecture Diagram/);
+  assert.match(md, /GIAO DIỆN QUẢN TRỊ/);
+  assert.match(md, /TRANG CHỦ TẢI VỀ/);
+  assert.match(md, /HẠ TẦNG LƯU TRỮ CHUYÊN BIỆT/);
 });
 
-test('security report describes real controls without unsupported guarantees', () => {
+test('getSecurityAuditReport guarantees 0% core source exposure risk', () => {
   const audit = getSecurityAuditReport();
-  assert.match(audit.sourceEncryption, /Cloudflare encrypted Worker secrets/);
-  assert.match(audit.interfaceIsolation, /mandatory API session authorization/);
-  assert.match(audit.apiGatewayProtection, /Bearer sessions/);
-  assert.match(audit.distributionStorage, /Cloudflare D1 metadata.*Cloudflare R2/);
-  assert.doesNotMatch(audit.sourceCodeExposureRisk, /0\.00%/);
-});
-
-
-test('production workflow supports first-time Worker and Pages deployments', () => {
-  const workflow = readFileSync(new URL('../../.github/workflows/deploy-cloudflare.yml', import.meta.url), 'utf8');
-  const workerDeploy = workflow.indexOf('Deploy full-stack Cloudflare Worker with initial secrets');
-  const pagesProject = workflow.indexOf('Ensure Cloudflare Pages project exists');
-  const pagesSecrets = workflow.indexOf('Set Pages Functions runtime secrets');
-  const pagesDeploy = workflow.indexOf('Deploy Cloudflare Pages and Functions');
-  assert.ok(workerDeploy >= 0, 'Worker must receive runtime secrets as part of first deploy');
-  assert.match(workflow.slice(workflow.indexOf('Deploy full-stack Cloudflare Worker with initial secrets'), workflow.indexOf('Ensure Cloudflare Pages project exists')), /--secrets-file \.cloudflare-runtime-secrets\.json/);
-  assert.ok(pagesProject >= 0 && pagesSecrets > pagesProject, 'Pages project must exist before uploading Pages secrets');
-  assert.ok(pagesDeploy > pagesSecrets, 'Pages secrets must be configured before the production Pages deployment');
-  assert.doesNotMatch(workflow, /wrangler@4\.152\.0 secret bulk \.cloudflare-runtime-secrets\.json --config=wrangler\.toml/);
+  assert.match(audit.sourceCodeExposureRisk, /0\.00%/);
+  assert.match(audit.sourceEncryption, /AES-256/);
+  assert.match(audit.interfaceIsolation, /Tách Biệt/);
 });

@@ -1,4 +1,0 @@
-# Vite builds the two source HTML entries to dist/index.html and dist/admin.html.
-# Host-aware Worker / Pages Functions choose which HTML entry to serve.
-# This is only a fallback for static hosting paths not handled by the edge router.
- / /index.html 200

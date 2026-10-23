@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "include": ["/", "/index.html", "/admin.html", "/admin", "/healthz", "/api/*"],
-  "exclude": ["/assets/*", "/favicon.ico", "/*.js", "/*.css", "/*.svg", "/*.png", "/*.jpg", "/*.webp", "/*.woff2"]
-}

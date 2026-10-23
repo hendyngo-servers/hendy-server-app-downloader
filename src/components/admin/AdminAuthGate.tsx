@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 
 interface AdminAuthGateProps {
   onSuccess: (token: string, user: { username: string; name: string }) => void;
-  onCancel?: () => void;
+  onCancel: () => void;
 }
 
 export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({ onSuccess, onCancel }) => {
@@ -95,15 +95,13 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({ onSuccess, onCance
           </div>
 
           <div className="pt-2 flex items-center gap-3">
-            {onCancel && (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="w-1/3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition-colors"
-              >
-                Về cổng tải
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-1/3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition-colors"
+            >
+              Quay Lại
+            </button>
             <button
               type="submit"
               disabled={loading}

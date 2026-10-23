@@ -89,7 +89,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
       const directUploadThreshold = 45 * 1024 * 1024;
 
       if (selectedFile.size > directUploadThreshold) {
-        // Use the authenticated upload-ticket endpoint for packages above the multipart threshold.
+        // Avoid buffering very large packages in the Render Free web service.
         const requestUpload = await fetch('/api/v1/admin/artifact-upload-url', {
           method: 'POST',
           headers: { ...authHeaders, 'Content-Type': 'application/json' },
@@ -110,11 +110,10 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
         setUploadProgress(35);
         const binaryUpload = await fetch(ticket.uploadUrl, {
           method: 'PUT',
-          headers: authHeaders,
           body: selectedFile
         });
         if (!binaryUpload.ok) {
-          throw new Error('Cloudflare Worker từ chối upload (' + binaryUpload.status + '). Kiểm tra giới hạn dung lượng và phiên quản trị.');
+          throw new Error('R2 từ chối upload (' + binaryUpload.status + '). Kiểm tra CORS bucket và quyền token.');
         }
         setUploadProgress(80);
 
@@ -320,7 +319,7 @@ export const ArtifactUploadPanel: React.FC<ArtifactUploadPanelProps> = ({
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-[11px] text-slate-400">
-                Tệp nhị phân: <code className="text-indigo-300 font-mono">Cloudflare R2</code> · metadata: <code className="text-indigo-300 font-mono">Cloudflare D1</code> · giới hạn mặc định: 50 MiB
+                Tệp nhị phân: <code className="text-indigo-300 font-mono">Cloudflare R2</code> · metadata: <code className="text-indigo-300 font-mono">PostgreSQL</code>
               </span>
 
               <button

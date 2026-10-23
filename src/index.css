@@ -1,87 +1,27 @@
 @import "tailwindcss";
 
-:root { color-scheme: dark; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
 @layer base {
-  body { margin: 0; min-width: 320px; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #080d18; }
-  code, pre, kbd, samp { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
-  button, input, select, textarea { font: inherit; } button { cursor: pointer; } button:disabled { cursor: not-allowed; }
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  }
+  
+  code, pre, kbd, samp {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
 }
 
-/* ForgeOS v2: two independent design systems */
-.hendy-header { position: sticky; top: 0; z-index: 40; width: 100%; flex: 0 0 auto; backdrop-filter: blur(20px); }
-.hendy-header-main { min-height: 76px; padding: 12px clamp(18px, 4vw, 56px); display: flex; align-items: center; gap: 25px; }
-.hendy-header-admin { color: #e8edf7; background: rgba(9,15,29,.97); border-bottom: 1px solid #202b40; }
-.hendy-header-store { color: #16243b; background: rgba(255,255,255,.97); border-bottom: 1px solid #e4e9f2; box-shadow: 0 8px 28px rgba(21,39,70,.04); }
-.hendy-brand { display: inline-flex; align-items: center; gap: 11px; flex-shrink: 0; color: inherit; text-decoration: none; }
-.hendy-brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; color: #06121b; background: linear-gradient(135deg,#8ef3d0,#54d9b1); font-size: 23px; font-weight: 950; box-shadow: 0 7px 22px rgba(58,213,166,.18); }
-.hendy-brand-copy,.hendy-user-copy { display: flex; flex-direction: column; line-height: 1.15; }
-.hendy-brand-copy strong { font-size: 17px; font-weight: 850; letter-spacing: -.04em; }
-.hendy-brand-copy small { margin-top: 5px; font-size: 9px; font-weight: 800; letter-spacing: .17em; opacity: .56; }
-.hendy-context { min-width: 130px; display: flex; flex-direction: column; gap: 4px; padding-left: 25px; border-left: 1px solid #273249; }
-.hendy-context-kicker,.hendy-admin-nav-label { color: #8190a9; font-size: 9px; font-weight: 800; letter-spacing: .15em; }
-.hendy-context strong { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.hendy-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-left: auto; }
-.hendy-primary-button,.hendy-quiet-button,.hendy-admin-entry,.hendy-mode-link { border: 0; border-radius: 11px; padding: 10px 15px; font-size: 11px; font-weight: 800; white-space: nowrap; transition: transform .18s ease, background .18s ease; }
-.hendy-primary-button { color: #062018; background: #78e6bf; box-shadow: 0 5px 18px rgba(68,218,170,.12); }
-.hendy-primary-button:hover { background: #9af0d1; transform: translateY(-1px); }
-.hendy-quiet-button { color: #cbd5e6; background: #151f32; border: 1px solid #2b3850; }
-.hendy-quiet-button:hover { background: #202c43; }
-.hendy-user-chip { display: flex; align-items: center; gap: 9px; padding: 5px 11px 5px 6px; color: #e5eaf4; background: #111a2b; border: 1px solid #29364d; border-radius: 13px; text-align: left; }
-.hendy-avatar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: #c7baff; background: #30285a; font-size: 12px; font-weight: 900; }
-.hendy-user-copy strong { font-size: 10px; font-weight: 800; } .hendy-user-copy small { margin-top: 4px; color: #94a2bb; font-size: 9px; }
-.hendy-mode-link { color: #b7c5da; background: transparent; border: 1px solid #27354b; } .hendy-mode-link:hover { color: white; border-color: #536580; }
-.hendy-store-nav { display: flex; align-items: center; gap: 5px; margin-left: 22px; }
-.hendy-store-nav-link { border: 0; border-radius: 10px; padding: 11px 12px; color: #64728a; background: transparent; font-size: 11px; font-weight: 750; white-space: nowrap; }
-.hendy-store-nav-link:hover { color: #16243b; background: #f2f5f9; } .hendy-store-nav-link.active { color: #087a59; background: #e7faf2; }
-.hendy-os-pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; color: #5a6b82; background: #f5f8fb; border: 1px solid #e6ebf2; border-radius: 999px; font-size: 10px; font-weight: 750; white-space: nowrap; }
-.hendy-live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4bd7a4; box-shadow: 0 0 0 4px rgba(75,215,164,.12); }
-.hendy-admin-entry { color: #65758c; background: transparent; } .hendy-admin-entry:hover { color: #087a59; background: #f2f7f5; }
-.hendy-admin-nav-wrap { display: flex; align-items: center; gap: 22px; min-height: 55px; padding: 0 clamp(18px,4vw,56px); overflow-x: auto; background: #0c1424; border-top: 1px solid #151f31; }
-.hendy-admin-nav-label { flex-shrink: 0; } .hendy-admin-nav-label span { color: #3d4b63; padding: 0 4px; }
-.hendy-admin-nav { display: flex; align-items: center; gap: 4px; min-width: max-content; }
-.hendy-admin-nav-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid transparent; border-radius: 9px; color: #91a0b9; background: transparent; font-size: 10px; font-weight: 750; white-space: nowrap; }
-.hendy-admin-nav-link:hover { color: #f1f5fb; background: #151f32; }
-.hendy-admin-nav-link.active { color: #c9c0ff; background: #29254a; border-color: #454075; }
-.hendy-nav-icon { color: #9d91ff; font-size: 13px; }
-.hendy-admin-status { display: flex; align-items: center; gap: 9px; margin-left: auto; color: #71819a; font-family: 'JetBrains Mono',monospace; font-size: 9px; letter-spacing: .08em; white-space: nowrap; }
-
-/* Public storefront: light, product-led browsing. Modals keep their original dark styling. */
-.hendy-app-store { background: #f5f7fb; color: #17253d; }
-.hendy-app-store > main { background: #f5f7fb; }
-.download-portal-v2 { background: #f5f7fb !important; color: #17253d !important; }
-.download-portal-v2 > section:first-of-type { background: linear-gradient(180deg,#fff 0%,#f5f8fc 100%) !important; border-color: #e4eaf2 !important; }
-.download-portal-v2 > section:first-of-type .bg-slate-900\/60,.download-portal-v2 > section:first-of-type .bg-slate-900\/90,.download-portal-v2 > section:first-of-type .bg-slate-950 { background: #fff !important; }
-.download-portal-v2 > section:first-of-type .border-slate-800,.download-portal-v2 > section:first-of-type .border-slate-800\/80,.download-portal-v2 > section:first-of-type .border-slate-700 { border-color: #e3e9f1 !important; }
-.download-portal-v2 > section:first-of-type .text-white { color: #17253d !important; }
-.download-portal-v2 > section:first-of-type .text-slate-300 { color: #52627a !important; }
-.download-portal-v2 > section:first-of-type .text-slate-400 { color: #738198 !important; }
-.download-portal-v2 > section:first-of-type .text-slate-500 { color: #8995a8 !important; }
-.download-portal-v2 > section:first-of-type input { color: #17253d !important; background: #f7f9fc !important; border-color: #dce4ef !important; }
-.download-portal-v2 > div:not(.fixed) { border-color: #e4eaf2; }
-.download-portal-v2 > div:not(.fixed) .bg-slate-900\/40 { background: #fff !important; }
-.download-portal-v2 > div:not(.fixed) .text-white { color: #17253d; }
-.download-portal-v2 > div:not(.fixed) .text-slate-400 { color: #687991; }
-.download-portal-v2 > div:not(.fixed) .border-slate-800,.download-portal-v2 > div:not(.fixed) .border-slate-800\/80 { border-color: #e3e9f1 !important; }
-.download-portal-v2 > div:not(.fixed) .bg-slate-900\/50 { background: #fff !important; box-shadow: 0 10px 32px rgba(25,45,75,.045); }
-.download-portal-v2 > div:not(.fixed) .bg-slate-900\/50:hover { background: #fbfdfd !important; }
-.download-portal-v2 > div:not(.fixed) .bg-slate-950 { background: #f3f6fa !important; }
-.download-portal-v2 > div:not(.fixed) .text-slate-500 { color: #8794a8; }
-.hendy-app-admin { background: #080d18; color: #e8edf7; } .hendy-app-admin > main { background: #080d18; }
-
-@media (max-width:1120px) {
-  .hendy-header-main { flex-wrap: wrap; gap: 14px; } .hendy-context { display: none; }
-  .hendy-store-nav { order: 3; width: 100%; margin: 0; overflow-x: auto; }
-  .hendy-header-actions { gap: 6px; } .hendy-admin-status { display: none; }
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-@media (max-width:720px) {
-  .hendy-header-main { padding: 12px 16px; } .hendy-brand-mark { width: 37px; height: 37px; border-radius: 12px; }
-  .hendy-brand-copy strong { font-size: 15px; } .hendy-brand-copy small { font-size: 8px; }
-  .hendy-os-pill { display: none; } .hendy-header-actions { flex-wrap: wrap; } .hendy-user-copy { display: none; }
-  .hendy-primary-button,.hendy-quiet-button,.hendy-mode-link,.hendy-admin-entry { padding: 9px 10px; font-size: 10px; }
-  .hendy-admin-nav-wrap { padding: 8px 16px; gap: 12px; align-items: flex-start; flex-direction: column; }
-  .hendy-admin-nav { width: 100%; overflow-x: auto; } .hendy-admin-nav-link { padding: 9px 10px; }
+::-webkit-scrollbar-track {
+  background: transparent;
 }
-::-webkit-scrollbar { width: 7px; height: 7px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(130,148,175,.28); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(130,148,175,.48); }
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}

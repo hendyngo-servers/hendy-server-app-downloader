@@ -58,7 +58,7 @@ export const ReleaseManager: React.FC<ReleaseManagerProps> = ({
     };
 
     onPublishRelease(newRelease);
-    onNotify(`Đã gửi bản phát hành ${newVersion} đến bước xác nhận công bố.`);
+    onNotify(`Đã xuất bản thành công bản phát hành ${newVersion} lên trang chủ người dùng!`);
   };
 
   return (

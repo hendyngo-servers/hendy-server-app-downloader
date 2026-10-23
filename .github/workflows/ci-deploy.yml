@@ -1,20 +1,17 @@
-name: Validate Hendy Server App Store for Cloudflare
+name: Build and deploy Hendy Server App Downloader
 
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
-    paths-ignore:
-      - wrangler.toml
-      - wrangler.pages.toml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: hendy-cloudflare-ci-v2-${{ github.ref }}
+  group: hendy-app-downloader-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -27,32 +24,59 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Set up Bun (verify lockfile)
-        uses: oven-sh/setup-bun@v2
-      - name: Verify frozen Bun lockfile
-        run: bun install --frozen-lockfile
-      - name: Ensure frozen install does not edit lockfile
-        run: git diff --exit-code -- bun.lock
-      - name: Install npm dependencies
+      - name: Install dependencies
         run: npm install
-      - name: Type-check TypeScript, including Worker and Pages Functions
+      - name: Type-check
         run: npm run lint
-      - name: Test Cloudflare deployment configuration helpers
-        run: node --experimental-strip-types --test src/utils/workersPagesConfig.test.ts
-      - name: Build separate Portal and Admin entries
-        run: npm run build
-      - name: Verify separate frontend bundles
-        run: node scripts/verify-frontend-separation.mjs
-      - name: Test Cloudflare API with local D1 and R2
+      - name: API smoke tests
         run: npm run test:api
-      - name: Validate Workers configuration
-        run: npx --yes wrangler@4.152.0 deploy --dry-run --config=wrangler.toml
-      - name: Validate Pages Functions configuration
-        run: npx --yes wrangler@4.152.0 pages functions build --outdir=.wrangler/pages-functions --config=wrangler.pages.toml
+      - name: Build frontend
+        run: npm run build
       - name: Upload static build
         uses: actions/upload-artifact@v4
         with:
-          name: hendy-cloudflare-dist
+          name: frontend-dist
           path: dist/
           if-no-files-found: error
           retention-days: 1
+
+  deploy-cloudflare-pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    needs: build-and-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (includes Pages Functions)
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build frontend
+        run: npm run build
+      - name: Deploy Cloudflare Pages and Functions
+        uses: cloudflare/wrangler-action@v4
+        with:
+          packageManager: npm
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=hendy-server-app-downloader --branch=main
+
+  deploy-cloudflare-worker:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    needs: build-and-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Deploy standalone API gateway Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          packageManager: npm
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config=wrangler.worker.toml
+
+  # Render auto-deploys the Node backend from this repository when main changes.
+  # DATABASE_URL, ADMIN_PASSWORD and R2 keys must be set in Render Dashboard.

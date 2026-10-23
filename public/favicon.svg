@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hendy Tools">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9bf7dc"/><stop offset="1" stop-color="#37d7b0"/></linearGradient></defs>
-  <rect width="64" height="64" rx="18" fill="#091321"/>
-  <path d="M17 14h9v14h12V14h9v36h-9V36H26v14h-9z" fill="url(#g)"/>
-</svg>

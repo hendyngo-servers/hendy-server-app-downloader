@@ -1,8 +1,5 @@
-import { createRoot } from "react-dom/client";
-import DownloadPortal from "./client/portal/DownloadPortal.tsx";
-import "./index.css";
-import "./client/portal/DownloadPortal.css";
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
 
-const root = document.getElementById("root");
-if (!root) throw new Error("Missing #root element for Public Store.");
-createRoot(root).render(<DownloadPortal />);
+createRoot(document.getElementById('root')!).render(<App />);

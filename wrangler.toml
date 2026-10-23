@@ -1,25 +1,5 @@
-# Cloudflare Workers: static Portal/Admin entries + D1/R2 API on one Worker.
-# Create the D1 database first, then replace the bootstrap UUID in this file and
-# wrangler.pages.toml with the UUID returned by "wrangler d1 create hendy-server-app-store".
+# Cloudflare Pages configuration (Pages Functions execute on the Workers runtime).
+# Configure BACKEND_ORIGIN as a runtime variable in the Pages dashboard.
 name = "hendy-server-app-downloader"
-main = "worker/index.ts"
 compatibility_date = "2026-10-23"
-
-[assets]
-directory = "./dist"
-binding = "ASSETS"
-not_found_handling = "404-page"
-run_worker_first = ["/*"]
-
-[[d1_databases]]
-binding = "DB"
-database_name = "hendy-server-app-store"
-database_id = "00000000-0000-0000-0000-000000000001"
-migrations_dir = "migrations/d1"
-
-[[r2_buckets]]
-binding = "ARTIFACTS"
-bucket_name = "hendy-server-app-artifacts"
-
-[vars]
-MAX_UPLOAD_BYTES = "52428800"
+pages_build_output_dir = "./dist"
