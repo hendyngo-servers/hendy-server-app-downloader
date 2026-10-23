@@ -1,5 +1,18 @@
-# Separate configuration for Cloudflare Pages and Pages Functions.
-# Use with "wrangler pages deploy", not with "wrangler deploy".
+# Cloudflare Pages + Pages Functions. No origin server or external backend is used.
 name = "hendy-server-app-downloader"
 compatibility_date = "2026-10-23"
 pages_build_output_dir = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hendy-server-app-store"
+database_id = "00000000-0000-0000-0000-000000000001"
+migrations_dir = "migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "hendy-server-app-artifacts"
+
+[vars]
+ADMIN_DISPLAY_NAME = "Hendy Administrator"
+MAX_UPLOAD_BYTES = "52428800"
