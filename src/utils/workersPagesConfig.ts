@@ -51,33 +51,49 @@ function safeToml(value: string): string {
 
 /** wrangler.toml configures Pages output and deliberately includes no fake resource IDs. */
 export function generateWranglerConfig(config: CloudflareWorkersPagesConfig): string {
+  const project = safeToml(config.projectName || "hendy-server-app-downloader");
+  const bucket = safeToml(config.r2Bucket || "hendy-server-app-artifacts");
   return [
-    # Cloudflare Workers / Pages: native API + D1 + R2, no origin backend.,
-    'name = "' + safeToml(config.projectName || "hendy-server-app-downloader") + '"',
+    "# Cloudflare Workers: static assets + native API + D1 + R2.",
+    'name = "' + project + '"',
+    'main = "worker/index.ts"',
     'compatibility_date = "2026-10-23"',
-    'pages_build_output_dir = "./dist"',
+    "",
+    "[assets]",
+    'directory = "./dist"',
+    'binding = "ASSETS"',
+    'run_worker_first = ["/*"]',
+    "",
+    "[[d1_databases]]",
+    'binding = "DB"',
+    'database_name = "hendy-server-app-store"',
+    'database_id = "REPLACE_WITH_D1_UUID"',
+    'migrations_dir = "migrations/d1"',
+    "",
+    "[[r2_buckets]]",
+    'binding = "ARTIFACTS"',
+    'bucket_name = "' + bucket + '"',
     ""
   ].join("\n");
 }
 
-/** Emits the same gateway pattern as functions/api/[[path]].ts. API authorization stays at origin. */
 export function generatePagesFunctionsRoute(): string {
   return [
-    "/** Cloudflare Pages Function using D1 and R2 bindings; no backend proxy. */",
+    "/** Cloudflare Pages Function using D1 and R2 bindings; no origin backend. */",
     'import { dispatchApi, type CloudflareEnv } from "../../worker/api-core";',
     "interface Context { request: Request; env: CloudflareEnv; }",
     "export async function onRequest(context: Context): Promise<Response> {",
     "  return dispatchApi(context.request, context.env);",
     "}",
     ""
-  ].join("\\n");
+  ].join("\n");
 }
 
 export function generateGitHubWorkflowYaml(config: CloudflareWorkersPagesConfig): string {
   const project = safeToml(config.projectName || "hendy-server-app-downloader");
   const branch = safeToml(config.pagesBranch || "main");
   return [
-    "name: Validate and deploy Hendy Server App Downloader",
+    "name: Validate and deploy Hendy Server App Store to Cloudflare",
     "",
     "on:",
     "  pull_request:",
@@ -100,9 +116,10 @@ export function generateGitHubWorkflowYaml(config: CloudflareWorkersPagesConfig)
     "      - run: npm install",
     "      - run: npm run lint",
     "      - run: npm run build",
+    "      - run: npm run test:api",
     "",
     "  deploy-cloudflare-pages:",
-    "    if: github.event_name == 'push' && github.ref == 'refs/heads/" + branch + "'",
+    "    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/" + branch + "' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true')",
     "    needs: build-and-check",
     "    runs-on: ubuntu-latest",
     "    steps:",
@@ -112,13 +129,13 @@ export function generateGitHubWorkflowYaml(config: CloudflareWorkersPagesConfig)
     "          node-version: 22",
     "      - run: npm install",
     "      - run: npm run build",
-    "      - uses: cloudflare/wrangler-action@v3",
+    "      - uses: cloudflare/wrangler-action@v4",
     "        with:",
-    "          apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN }}",
-    "          accountId: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}",
+    "          apiToken: " + "$" + "{{ secrets.CLOUDFLARE_API_TOKEN }}",
+    "          accountId: " + "$" + "{{ secrets.CLOUDFLARE_ACCOUNT_ID }}",
     "          command: pages deploy dist --project-name=" + project + " --branch=" + branch,
     "",
-    # Configure D1/R2 bindings and runtime secrets in Cloudflare; attach custom domains and TLS in Dashboard.,
+    "# Cloudflare provisions D1/R2 and handles API requests; DNS/custom domains and TLS are configured separately.",
     ""
   ].join("\n");
 }
