@@ -1,6 +1,6 @@
 # Hendy Server App Store — Cloudflare-only
 
-Hendy Server App Store separates the public software portal and administrator console into two independent React/Vite entry points, with a shared API and data layer. The runtime uses **Cloudflare Workers or Cloudflare Pages Functions + D1 + R2**. No external Node.js application server, PostgreSQL service, or API origin is required.
+Hendy Server App Store separates the public software portal and administrator console into two independent React/Vite entry points, with a shared API and data layer. **Deployment is Cloudflare-only: Cloudflare Workers OR Cloudflare Pages Functions, backed by Cloudflare D1 and R2. Render, VPS services, external Node.js API servers, PostgreSQL, and third-party API origins are not part of this architecture.**
 
 ## Architecture
 
@@ -11,7 +11,7 @@ Hendy Server App Store separates the public software portal and administrator co
 - **Installers and release files:** private-by-default Cloudflare R2 bucket binding `ARTIFACTS`; downloads are streamed through the Worker only after checking that the corresponding release is published.
 - **Hostname routing:** D1 `domain_routes` plus optional hostname variables. The API stores Portal/Admin mappings. A dedicated Shared API hostname returns a service descriptor at `/` and the API under `/api/v1/*`.
 
-## Choose a Cloudflare deployment target
+## Choose a Cloudflare deployment target (no Render deployment)
 
 ### Option A — Cloudflare Workers (recommended)
 

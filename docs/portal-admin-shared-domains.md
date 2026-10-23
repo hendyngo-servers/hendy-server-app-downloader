@@ -1,4 +1,6 @@
-# Portal / Admin / Shared — Cloudflare-only domains
+# Portal / Admin / Shared — Cloudflare-only
+
+> Render, VPS hosting, external backend origins and PostgreSQL are intentionally not used. Both supported deployment targets run the application API and persistence directly on Cloudflare. domains
 
 Hendy Server App Store runs entirely on Cloudflare. Both deployment options use `worker/api-core.ts` and Cloudflare bindings: D1 for metadata/sessions and R2 for installer artifacts.
 
