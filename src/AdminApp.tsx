@@ -27,7 +27,7 @@ export default function AdminApp() {
   const [isDomainSettingsOpen, setIsDomainSettingsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [publicStoreUrl, setPublicStoreUrl] = useState('');
-  const fileSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const fileSaveTimers = useRef<Record<string, number>>({});
 
   const notify = useCallback((message: string) => {
     setToast(message);
