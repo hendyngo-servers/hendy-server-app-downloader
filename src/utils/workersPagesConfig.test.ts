@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   getDefaultDeploymentConfig,
   generateWranglerConfig,
@@ -78,4 +79,18 @@ test('security report describes real controls without unsupported guarantees', (
   assert.match(audit.apiGatewayProtection, /Bearer sessions/);
   assert.match(audit.distributionStorage, /Cloudflare D1 metadata.*Cloudflare R2/);
   assert.doesNotMatch(audit.sourceCodeExposureRisk, /0\.00%/);
+});
+
+
+test('production workflow supports first-time Worker and Pages deployments', () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/deploy-cloudflare.yml', import.meta.url), 'utf8');
+  const workerDeploy = workflow.indexOf('Deploy full-stack Cloudflare Worker with initial secrets');
+  const pagesProject = workflow.indexOf('Ensure Cloudflare Pages project exists');
+  const pagesSecrets = workflow.indexOf('Set Pages Functions runtime secrets');
+  const pagesDeploy = workflow.indexOf('Deploy Cloudflare Pages and Functions');
+  assert.ok(workerDeploy >= 0, 'Worker must receive runtime secrets as part of first deploy');
+  assert.match(workflow.slice(workflow.indexOf('Deploy full-stack Cloudflare Worker with initial secrets'), workflow.indexOf('Ensure Cloudflare Pages project exists')), /--secrets-file \.cloudflare-runtime-secrets\.json/);
+  assert.ok(pagesProject >= 0 && pagesSecrets > pagesProject, 'Pages project must exist before uploading Pages secrets');
+  assert.ok(pagesDeploy > pagesSecrets, 'Pages secrets must be configured before the production Pages deployment');
+  assert.doesNotMatch(workflow, /wrangler@4\.152\.0 secret bulk \.cloudflare-runtime-secrets\.json --config=wrangler\.toml/);
 });
