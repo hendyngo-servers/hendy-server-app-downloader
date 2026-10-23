@@ -962,7 +962,7 @@ app.get("/api/v1/domains", async (_req, res, next) => {
           purpose: route.targetView === "admin" ? "Admin Control Center; authentication required." : "Public Store; published releases only.",
           dnsType: "CNAME",
           dnsTarget: "",
-          status: route.enabled ? "active" : "pending",
+          status: "pending",
           sslStatus: "provisioning",
           accessControl: route.targetView === "admin" ? "Internal Token Auth" : "Public Edge CDN",
           apiManaged: true,
