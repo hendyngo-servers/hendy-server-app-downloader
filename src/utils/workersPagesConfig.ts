@@ -24,9 +24,9 @@ export function getDefaultDeploymentConfig(): CloudflareWorkersPagesConfig {
     projectName: "hendy-server-app-downloader",
     pagesBranch: "main",
     pagesDomain: "sẽ có sau khi tạo Pages project",
-    workersRoute: "chưa cấu hình — Pages Functions proxy /api/*",
+    workersRoute: "worker/index.ts — static assets + native API",
     r2Bucket: "hendy-server-app-artifacts",
-    kvNamespace: "không dùng — metadata lưu trong PostgreSQL",
+    kvNamespace: "không dùng — metadata lưu trong Cloudflare D1",
     githubRepoUrl: "https://github.com/hendyngo-servers/hendy-server-app-downloader",
     apiEndpoint: "/api/v1/admin/domain-routes",
     apiKeyProtected: true,
@@ -37,11 +37,11 @@ export function getDefaultDeploymentConfig(): CloudflareWorkersPagesConfig {
 export function getSecurityAuditReport(): SecurityAuditReport {
   return {
     sourceCodeExposureRisk: "Chưa được đo bằng kiểm thử bảo mật độc lập",
-    sourceEncryption: "Không tuyên bố mã hóa source trong ứng dụng; bí mật phải lưu tại secret store",
-    interfaceIsolation: "Public Store và Admin Control Center có hai HTML/React entry point độc lập; hostname router chọn entry, API admin yêu cầu Bearer session",
+    sourceEncryption: "Never store secrets in source; use GitHub Actions Secrets and Cloudflare encrypted Worker secrets",
+    interfaceIsolation: "Portal and Admin have distinct HTML/React entries; hostname routing is separate from mandatory API session authorization",
     binaryStripping: "Chưa thực hiện trong web build; chỉ áp dụng nếu quy trình native build hỗ trợ",
-    apiGatewayProtection: "Bearer session, token hash trong DB, hết hạn phiên và giới hạn tốc độ đăng nhập",
-    distributionStorage: "Cloudflare R2 private bucket + PostgreSQL (cần cấu hình đúng trên tài khoản)"
+    apiGatewayProtection: "Bearer sessions, hashed tokens in D1, expiry and per-IP login throttling",
+    distributionStorage: "Cloudflare D1 metadata + private Cloudflare R2 object storage"
   };
 }
 
@@ -52,7 +52,7 @@ function safeToml(value: string): string {
 /** wrangler.toml configures Pages output and deliberately includes no fake resource IDs. */
 export function generateWranglerConfig(config: CloudflareWorkersPagesConfig): string {
   return [
-    "# Cloudflare Pages + Pages Functions. API metadata and binaries remain on Render/PostgreSQL/R2.",
+    # Cloudflare Workers / Pages: native API + D1 + R2, no origin backend.,
     'name = "' + safeToml(config.projectName || "hendy-server-app-downloader") + '"',
     'compatibility_date = "2026-10-23"',
     'pages_build_output_dir = "./dist"',
@@ -63,28 +63,28 @@ export function generateWranglerConfig(config: CloudflareWorkersPagesConfig): st
 /** Emits the same gateway pattern as functions/api/[[path]].ts. API authorization stays at origin. */
 export function generatePagesFunctionsRoute(): string {
   return [
-    "/** Pages Functions gateway; set BACKEND_ORIGIN in Pages environment variables. */",
-    "interface Env { BACKEND_ORIGIN?: string; }",
-    "interface Context { request: Request; env: Env; }",
+    "/** Pages Functions uses the same Cloudflare-native API and D1/R2 bindings. */",
+    "import { dispatchApi, type CloudflareEnv } from \"../../worker/api-core\";",
+    "interface Context { request: Request; env: CloudflareEnv; }",
     "export async function onRequest(context: Context): Promise<Response> {",
-    "  const origin = context.env.BACKEND_ORIGIN;",
-    "  if (!origin) return Response.json({ error: 'BACKEND_ORIGIN is not configured' }, { status: 503 });",
-    "  let backend: URL;",
-    "  try {",
-    "    backend = new URL(origin);",
-    "    if (backend.protocol !== 'https:' && backend.hostname !== 'localhost' && backend.hostname !== '127.0.0.1') throw new Error('HTTPS required');",
-    "  } catch { return Response.json({ error: 'Invalid BACKEND_ORIGIN' }, { status: 500 }); }",
-    "  const incoming = new URL(context.request.url);",
-    "  const target = new URL(backend.toString());",
-    "  target.pathname = incoming.pathname;",
-    "  target.search = incoming.search;",
-    "  try {",
-    "    const response = await fetch(new Request(target.toString(), context.request));",
-    "    const headers = new Headers(response.headers);",
-    "    headers.set('Cache-Control', 'no-store');",
-    "    headers.set('X-Content-Type-Options', 'nosniff');",
-    "    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });",
-    "  } catch { return Response.json({ error: 'Backend unavailable' }, { status: 502 }); }",
+    "  return dispatchApi(context.request, context.env);",
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     "}",
     ""
   ].join("\n");
@@ -135,7 +135,7 @@ export function generateGitHubWorkflowYaml(config: CloudflareWorkersPagesConfig)
     "          accountId: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}",
     "          command: pages deploy dist --project-name=" + project + " --branch=" + branch,
     "",
-    "# Configure Render Auto-Deploy separately. Keep DATABASE_URL, ADMIN_PASSWORD and R2 keys in Render secrets.",
+    # Configure D1/R2 bindings and runtime secrets in Cloudflare; attach custom domains and TLS in Dashboard.,
     ""
   ].join("\n");
 }
@@ -168,16 +168,16 @@ export function getWorkersPagesDirectoryTree(): DirectoryNode {
         name: "functions", type: "directory", path: "/functions", children: [
           {
             name: "api", type: "directory", path: "/functions/api", children: [
-              { name: "[[path]].ts", type: "file", path: "/functions/api/[[path]].ts", description: "Proxy /api/* đến backend Render qua BACKEND_ORIGIN" }
+              { name: "[[path]].ts", type: "file", path: "/functions/api/[[path]].ts", description: "Cloudflare-native API using D1 and R2 bindings" }
             ]
           }
         ]
       },
       { name: "migrations", type: "directory", path: "/migrations", children: [
-        { name: "0001_init.sql", type: "file", path: "/migrations/0001_init.sql", description: "Schema PostgreSQL cho metadata, phiên đăng nhập và audit" }
+        { name: "0001_init.sql", type: "file", path: "/migrations/d1/0001_init.sql", description: "Cloudflare D1 schema for metadata, sessions and audit" }
       ] },
-      { name: "server.ts", type: "file", path: "/server.ts", description: "Express API chạy trên Render Node runtime" },
-      { name: "render.yaml", type: "file", path: "/render.yaml", description: "Render Web Service Blueprint, bí mật nhập qua Dashboard" },
+      
+      
       { name: "wrangler.toml", type: "file", path: "/wrangler.toml", description: "Cấu hình Cloudflare Pages; không chứa resource ID giả hoặc secret" },
       { name: "src/App.tsx", type: "file", path: "/src/App.tsx", description: "Giao diện Studio và cổng tải phần mềm" },
       { name: "README.md", type: "file", path: "/README.md", description: "Tài liệu thiết lập môi trường và triển khai" }
@@ -193,13 +193,13 @@ export function generateSystemArchitectureMarkdown(config: CloudflareWorkersPage
     "Người dùng / Quản trị viên",
     "          | HTTPS",
     "          v",
-    "Cloudflare Pages (React/Vite static UI)",
-    "          | Pages Functions proxy /api/*",
+    "Cloudflare Workers Assets or Cloudflare Pages (React/Vite static UI)",
+    "          | Native API dispatch in Worker / Pages Functions",
     "          v",
-    "Render Free — Express API / Node.js",
+    "Cloudflare Worker native API (or Cloudflare Pages Functions)",
     "        |                    |",
     "        v                    v",
-    "PostgreSQL metadata      Cloudflare R2 private bucket",
+    "Cloudflare D1 metadata   Cloudflare R2 private bucket",
     "        |                    |",
     "        +---- artifact metadata / signed downloads ----+",
     "~~~",
@@ -207,8 +207,8 @@ export function generateSystemArchitectureMarkdown(config: CloudflareWorkersPage
     "## Cấu hình hiện tại",
     "- Repository: " + config.githubRepoUrl,
     "- Pages project: " + config.projectName + " (branch " + config.pagesBranch + ")",
-    "- Metadata: PostgreSQL; binaries: private R2 bucket " + config.r2Bucket,
-    "- API: " + config.apiEndpoint + "; Pages gateway requires BACKEND_ORIGIN",
+    "- Metadata: D1; binaries: private R2 bucket " + config.r2Bucket,
+    "- API: " + config.apiEndpoint + "; D1/R2 bindings are configured in Wrangler",
     "",
     "## Bảo mật và giới hạn",
     "- API admin kiểm tra phiên Bearer ở backend; ẩn tab frontend không phải biện pháp bảo vệ.",
